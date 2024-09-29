@@ -1,0 +1,2 @@
+class DelugeWebClientError(Exception):
+    pass
