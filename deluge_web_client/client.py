@@ -240,7 +240,7 @@ class DelugeWebClient:
                 if label:
                     self._apply_label(info_hash, str(label), timeout)
                 self._start_torrent(info_hash, timeout)
-                return Response(result=True, error=None, id=1)
+                return Response(result=info_hash, error=None, id=1)
             else:
                 response.raise_for_status()
 
@@ -303,6 +303,59 @@ class DelugeWebClient:
     def get_torrent_files(self, torrent_id: str, timeout: int = 30) -> Response:
         """Gets the files for a torrent in tree format"""
         payload = {"method": "web.get_torrent_files", "params": [torrent_id], "id": 1}
+        return self.execute_call(payload, timeout)
+
+    def get_torrent_status(
+        self,
+        torrent_id: str,
+        keys: list[str] = [],
+        diff: bool = False,
+        timeout: int = 30,
+    ) -> Response:
+        """
+        Gets the status for a torrent.
+
+        Args:
+            torrent_id (str): Torrent hash of for a single torrent.
+            keys (dict): Filtering criteria for torrents.
+            diff (bool): Whether to return the status difference.
+            timeout (int): Time to timeout for the call.
+
+        Returns:
+            Response: The response from the API call.
+        """
+        payload = {
+            "method": "core.get_torrent_status",
+            "params": [torrent_id, keys, diff],
+            "id": 1,
+        }
+        return self.execute_call(payload, timeout)
+
+    def get_torrents_status(
+        self,
+        filter_dict: dict = {},
+        keys: list[str] = [],
+        diff: bool = False,
+        timeout: int = 30,
+    ) -> Response:
+        """
+        Gets the status for multiple torrents, returns all torrents,
+        optionally filtered by filter_dict
+
+        Args:
+            filter_dict (dict): Filtering criteria for torrents.
+            keys (list[str]): List of specific torrent IDs to fetch status for.
+            diff (bool): Whether to return the status difference.
+            timeout (int): Time to timeout for the call.
+
+        Returns:
+            Response: The response from the API call.
+        """
+        payload = {
+            "method": "core.get_torrents_status",
+            "params": [filter_dict, keys, diff],
+            "id": 1,
+        }
         return self.execute_call(payload, timeout)
 
     def check_connected(self, timeout: int = 30) -> Response:
