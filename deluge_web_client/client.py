@@ -36,7 +36,7 @@ class DelugeWebClient:
         payload = {"method": "auth.login", "params": [self.password], "id": 1}
         return self.execute_call(payload)
 
-    def logout(self) -> Response:
+    def disconnect(self) -> Response:
         """
         Disconnects from the Web UI.
         Note: This disconnects from all of your logged in instances outside of this program as well
@@ -134,6 +134,16 @@ class DelugeWebClient:
             if "Label already exists" not in response.error.get("message"):
                 raise DelugeWebClientError(f"Error adding label:\n{response.error}")
         return response
+
+    def get_plugins(self) -> Response:
+        """Gets plugins"""
+        payload = {"method": "web.get_plugins", "params": [], "id": 1}
+        return self.execute_call(payload)
+
+    def get_torrent_files(self, torrent_id: str) -> Response:
+        """Gets the files for a torrent in tree format"""
+        payload = {"method": "web.get_torrent_files", "params": [torrent_id], "id": 1}
+        return self.execute_call(payload)
 
     def check_connected(self) -> Response:
         """
