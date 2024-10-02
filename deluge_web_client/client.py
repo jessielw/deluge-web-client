@@ -19,9 +19,17 @@ class DelugeWebClient:
 
     def __init__(self, url: str, password: str) -> None:
         self.session = requests.Session()
-
         self.url = self._build_url(url)
         self.password = password
+
+    def __enter__(self) -> "DelugeWebClient":
+        """Connect to client while using with statement."""
+        self.login()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        """Disconnect from client at end of with statement."""
+        return False
 
     def login(self) -> Response:
         """Log in to Web UI"""
@@ -29,7 +37,11 @@ class DelugeWebClient:
         return self.execute_call(payload)
 
     def logout(self) -> Response:
-        """Disconnects from the Web UI"""
+        """
+        Disconnects from the Web UI.
+        Note: This disconnects from all of your logged in instances outside of this program as well
+        that is tied to that user/password. Only use this IF needed not on each call.
+        """
         payload = {"method": "web.disconnect", "params": [], "id": 1}
         return self.execute_call(payload)
 
