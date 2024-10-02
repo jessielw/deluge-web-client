@@ -104,7 +104,7 @@ class DelugeWebClient:
             timeout (int): Time to timeout.
 
         Returns:
-            Response: _description_
+            Response: Response object.
         """
         torrent_path = Path(torrent_path)
         with open(torrent_path, "rb") as tf:
@@ -117,18 +117,7 @@ class DelugeWebClient:
                 args,
             ]
             payload = {"method": "core.add_torrent_file", "params": params, "id": 1}
-            with self.session.post(
-                self.url, headers=self.HEADERS, json=payload, timeout=timeout
-            ) as response:
-                if response.ok:
-                    result = response.json()
-                    info_hash = str(result["result"])
-                    if label:
-                        self._apply_label(info_hash, str(label), timeout)
-                    self._start_torrent(info_hash, timeout)
-                    return Response(result=True, error=None, id=1)
-                else:
-                    response.raise_for_status()
+            return self._upload_helper(payload, label, timeout)
 
     def upload_torrents(
         self,
@@ -163,6 +152,44 @@ class DelugeWebClient:
                 )
 
         return results
+
+    def add_torrent_magnet(
+        self, uri: str, save_directory: str = None, label: str = None, timeout: int = 30
+    ):
+        """Adds a torrent from a magnet link.
+
+        Args:
+            uri (str): Magnet input
+            save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
+            label (str, optional): Label to apply to uploaded torrent. Defaults to None.
+            timeout (int): Time to timeout.
+
+        Returns:
+            Response: Response object.
+        """
+        args = {"add_paused": True, "seed_mode": False, "auto_managed": True}
+        if save_directory:
+            args["download_location"] = str(save_directory)
+        payload = {
+            "method": "core.add_torrent_magnet",
+            "params": [str(uri), args],
+            "id": 1,
+        }
+        return self._upload_helper(payload, label, timeout)
+
+    def _upload_helper(self, payload: dict, label: str, timeout: int) -> Response:
+        with self.session.post(
+            self.url, headers=self.HEADERS, json=payload, timeout=timeout
+        ) as response:
+            if response.ok:
+                result = response.json()
+                info_hash = str(result["result"])
+                if label:
+                    self._apply_label(info_hash, str(label), timeout)
+                self._start_torrent(info_hash, timeout)
+                return Response(result=True, error=None, id=1)
+            else:
+                response.raise_for_status()
 
     def _apply_label(
         self, info_hash: str, label: str, timeout: int
