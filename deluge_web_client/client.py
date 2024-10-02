@@ -263,7 +263,6 @@ class DelugeWebClient:
     def execute_call(
         self, payload: dict, handle_error: bool = True, timeout: int = 30
     ) -> Response:
-        # TODO: finish this
         """
         Helper method to execute most calls to the Web UI as needed.
 
@@ -271,6 +270,7 @@ class DelugeWebClient:
             payload (dict): Payload object to be called.
             handle_error (bool, optional): Handle errors here or allow the caller to handle
                 the error. Defaults to True.
+            timeout (int): Time to timeout.
 
         Returns:
             Response: Response object for each call.
