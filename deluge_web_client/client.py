@@ -9,12 +9,12 @@ from .exceptions import DelugeWebClientError
 from .response import Response
 
 
-# TODO: timeout
 # TODO: add other useful rpc methods https://deluge.readthedocs.io/en/deluge-2.0.1/reference/api.html
 
 
 class DelugeWebClient:
     HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
+    LOGIN_RETRIES = 3
 
     def __init__(self, url: str, password: str) -> None:
         self.session = requests.Session()
@@ -30,25 +30,71 @@ class DelugeWebClient:
         """Disconnect from client at end of with statement."""
         return False
 
-    def login(self) -> Response:
-        """Log in to Web UI"""
-        payload = {"method": "auth.login", "params": [self.password], "id": 1}
-        return self.execute_call(payload)
+    def login(self, timeout: int = 30) -> Response:
+        """
+        Log in to Web UI and connects to the first available host, retrying if needed.
 
-    def disconnect(self) -> Response:
+        Args:
+            timeout (int): Timeout for the login and connection attempts.
+
+        Returns:
+            Response: A summary response indicating the success or failure of the login and connection attempts.
+        """
+        login_response = self._attempt_login(timeout)
+        if not login_response.result:
+            return Response(result=False, error="Login failed", id=None)
+
+        # check if already connected
+        if self.check_connected(timeout).result:
+            return Response(result=True, error=None, id=None)
+
+        # attempt to connect to the first available host with retries
+        connection_response = self._connect_to_first_host(timeout)
+        if not connection_response.get(
+            "connected_now", Response(None, None, None)
+        ).result:
+            return Response(result=False, error="Failed to connect to host", id=None)
+
+        return Response(result=True, error=None, id=None)
+
+    def _attempt_login(self, timeout: int) -> Response:
+        """Attempt to log in to the Web UI"""
+        login_payload = {"method": "auth.login", "params": [self.password], "id": 1}
+        return self.execute_call(login_payload, timeout)
+
+    def _connect_to_first_host(self, timeout: int) -> dict[str, Response]:
+        """Connect to the first available host with retry logic"""
+        hosts = self.get_hosts()
+
+        if hosts.result:
+            for _ in range(self.LOGIN_RETRIES):
+                host_id = hosts.result[0][0]
+                connect_response = self.connect_to_host(host_id)
+
+                if connect_response.result:
+                    return {"connected_now": self.check_connected(timeout)}
+
+        return {
+            "connected_now": Response(
+                result=False, error="All attempts failed", id=None
+            )
+        }
+
+    def disconnect(self, timeout: int = 30) -> Response:
         """
         Disconnects from the Web UI.
         Note: This disconnects from all of your logged in instances outside of this program as well
         that is tied to that user/password. Only use this IF needed not on each call.
         """
         payload = {"method": "web.disconnect", "params": [], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
     def upload_torrent(
         self,
         torrent_path: Union[PathLike[str], Path],
         save_directory: str = None,
         label: str = None,
+        timeout: int = 30,
     ) -> Response:
         """
         Opens the torrent path building out the payload as needed to
@@ -58,6 +104,7 @@ class DelugeWebClient:
             torrent_path (PathLike[str], Path): Path to torrent file (example.torrent).
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
             label (str, optional): Label to apply to uploaded torrent. Defaults to None.
+            timeout (int): Time to timeout.
 
         Returns:
             Response: _description_
@@ -74,14 +121,14 @@ class DelugeWebClient:
             ]
             payload = {"method": "core.add_torrent_file", "params": params, "id": 1}
             with self.session.post(
-                self.url, headers=self.HEADERS, json=payload
+                self.url, headers=self.HEADERS, json=payload, timeout=timeout
             ) as response:
                 if response.ok:
                     result = response.json()
                     info_hash = str(result["result"])
                     if label:
-                        self._apply_label(info_hash, str(label))
-                    self._start_torrent(info_hash)
+                        self._apply_label(info_hash, str(label), timeout)
+                    self._start_torrent(info_hash, timeout)
                     return Response(result=True, error=None, id=1)
                 else:
                     response.raise_for_status()
@@ -91,6 +138,7 @@ class DelugeWebClient:
         torrents: Iterable[Union[PathLike[str], Path]],
         save_directory: str = None,
         label: str = None,
+        timeout: int = 30,
     ) -> dict[str, Response]:
         """
         Uploads multiple torrents.
@@ -99,6 +147,7 @@ class DelugeWebClient:
             torrents (Iterable[Union[PathLike[str], Path]]): A list or other iterable of torrent file paths.
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
             label (str, optional): Label to apply to uploaded torrents. Defaults to None.
+            timeout (int): Time to timeout.
 
         Returns:
             dict[str, Response]: A dictionary of torrent name and Response objects for each torrent.
@@ -107,7 +156,9 @@ class DelugeWebClient:
         for torrent_path in torrents:
             torrent_path = Path(torrent_path)
             try:
-                response = self.upload_torrent(torrent_path, save_directory, label)
+                response = self.upload_torrent(
+                    torrent_path, save_directory, label, timeout
+                )
                 results[torrent_path.stem] = response
             except Exception as e:
                 raise DelugeWebClientError(
@@ -116,7 +167,9 @@ class DelugeWebClient:
 
         return results
 
-    def _apply_label(self, info_hash: str, label: str) -> tuple[bool, bool]:
+    def _apply_label(
+        self, info_hash: str, label: str, timeout: int
+    ) -> tuple[bool, bool]:
         """
         Used internally to add and apply labels as needed for
         the `upload_torrent` method
@@ -124,89 +177,92 @@ class DelugeWebClient:
         Args:
             info_hash (str): Info has of torrent.
             label (str): Label to apply it to (automatically set to lowercase internally).
+            timeout (int): Time to timeout.
 
         Returns:
             tuple (bool, bool): add_label(), set_label().
         """
-        add_label = self.add_label(label)
-        set_label = self.set_label(info_hash, label)
+        add_label = self.add_label(label, timeout)
+        set_label = self.set_label(info_hash, label, timeout)
         return add_label, set_label
 
-    def _start_torrent(self, info_hash: str) -> Response:
+    def _start_torrent(self, info_hash: str, timeout: int = 30) -> Response:
         """Helper method to start the torrent after it's been uploaded"""
         payload = {"method": "core.resume_torrent", "params": [info_hash], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def get_labels(self) -> Response:
+    def get_labels(self, timeout: int = 30) -> Response:
         """Gets defined labels"""
         payload = {"method": "label.get_labels", "params": [], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def set_label(self, info_hash: str, label: str) -> Response:
+    def set_label(self, info_hash: str, label: str, timeout: int = 30) -> Response:
         """Sets the label for a specific torrent"""
         payload = {
             "method": "label.set_torrent",
             "params": [info_hash, label.lower()],
             "id": 1,
         }
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def add_label(self, label: str) -> Response:
+    def add_label(self, label: str, timeout: int = 30) -> Response:
         """Adds a label to the client, ignoring labels if they already exist"""
         payload = {
             "method": "label.add",
             "params": [label.lower()],
             "id": 1,
         }
-        response = self.execute_call(payload, handle_error=False)
+        response = self.execute_call(payload, handle_error=False, timeout=timeout)
         if response.error != None:
             if "Label already exists" not in response.error.get("message"):
                 raise DelugeWebClientError(f"Error adding label:\n{response.error}")
         return response
 
-    def get_plugins(self) -> Response:
+    def get_plugins(self, timeout: int = 30) -> Response:
         """Gets plugins"""
         payload = {"method": "web.get_plugins", "params": [], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def get_torrent_files(self, torrent_id: str) -> Response:
+    def get_torrent_files(self, torrent_id: str, timeout: int = 30) -> Response:
         """Gets the files for a torrent in tree format"""
         payload = {"method": "web.get_torrent_files", "params": [torrent_id], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def check_connected(self) -> Response:
+    def check_connected(self, timeout: int = 30) -> Response:
         """
         Use the `web.connected` method to get a boolean response if the Web UI is
         connected to a deluged host
         """
         payload = {"method": "web.connected", "params": [], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def get_hosts(self) -> Response:
+    def get_hosts(self, timeout: int = 30) -> Response:
         """Returns hosts we're connected to currently"""
         payload = {"method": "web.get_hosts", "params": [], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def get_host_status(self, host_id: str) -> Response:
+    def get_host_status(self, host_id: str, timeout: int = 30) -> Response:
         """Get the deluged host status `<hostID>`"""
         payload = {"method": "web.get_host_status", "params": [host_id], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def connect_to_host(self, host_id: str) -> Response:
+    def connect_to_host(self, host_id: str, timeout: int = 30) -> Response:
         """To connect to deluged with `<hostID>`"""
         payload = {"method": "web.connect", "params": [host_id], "id": 1}
-        return self.execute_call(payload)
+        return self.execute_call(payload, timeout)
 
-    def test_listen_port(self) -> bool:
+    def test_listen_port(self, timeout: int = 30) -> bool:
         """Checks if the active port is open
 
         Returns:
             bool: If active port is opened or closed
         """
         payload = {"method": "core.test_listen_port", "params": [], "id": 1}
-        return self.execute_call(payload).result
+        return self.execute_call(payload, timeout).result
 
-    def execute_call(self, payload: dict, handle_error: bool = True) -> Response:
+    def execute_call(
+        self, payload: dict, handle_error: bool = True, timeout: int = 30
+    ) -> Response:
         # TODO: finish this
         """
         Helper method to execute most calls to the Web UI as needed.
@@ -220,11 +276,10 @@ class DelugeWebClient:
             Response: Response object for each call.
         """
         with self.session.post(
-            self.url, headers=self.HEADERS, json=payload
+            self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
             if response.ok:
                 response_json = response.json()
-                print(response_json)
                 data = Response(
                     result=response_json.get("result"),
                     error=self._normalize_exception(response_json.get("error")),
