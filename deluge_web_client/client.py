@@ -1,5 +1,6 @@
 import base64
 import requests
+from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
 from typing import Union
@@ -10,8 +11,6 @@ from .response import Response
 
 # TODO: timeout
 # TODO: add other useful rpc methods https://deluge.readthedocs.io/en/deluge-2.0.1/reference/api.html
-# TODO: add method upload_torrents
-# TODO: setup this for having potential as a context manager completely that automatically calls close
 
 
 class DelugeWebClient:
@@ -52,7 +51,7 @@ class DelugeWebClient:
         label: str = None,
     ) -> Response:
         """
-        Opens the torrent path building out numerous payloads as needed to
+        Opens the torrent path building out the payload as needed to
         upload a single torrent to the client.
 
         Args:
@@ -86,6 +85,36 @@ class DelugeWebClient:
                     return Response(result=True, error=None, id=1)
                 else:
                     response.raise_for_status()
+
+    def upload_torrents(
+        self,
+        torrents: Iterable[Union[PathLike[str], Path]],
+        save_directory: str = None,
+        label: str = None,
+    ) -> dict[str, Response]:
+        """
+        Uploads multiple torrents.
+
+        Args:
+            torrents (Iterable[Union[PathLike[str], Path]]): A list or other iterable of torrent file paths.
+            save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
+            label (str, optional): Label to apply to uploaded torrents. Defaults to None.
+
+        Returns:
+            dict[str, Response]: A dictionary of torrent name and Response objects for each torrent.
+        """
+        results = {}
+        for torrent_path in torrents:
+            torrent_path = Path(torrent_path)
+            try:
+                response = self.upload_torrent(torrent_path, save_directory, label)
+                results[torrent_path.stem] = response
+            except Exception as e:
+                raise DelugeWebClientError(
+                    f"Failed to upload {torrent_path.name}:\n{e}"
+                )
+
+        return results
 
     def _apply_label(self, info_hash: str, label: str) -> tuple[bool, bool]:
         """
