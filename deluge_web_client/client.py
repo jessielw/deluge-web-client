@@ -89,6 +89,9 @@ class DelugeWebClient:
     def upload_torrent(
         self,
         torrent_path: Union[PathLike[str], Path],
+        add_paused: bool = False,
+        seed_mode: bool = False,
+        auto_managed: bool = False,
         save_directory: str = None,
         label: str = None,
         timeout: int = 30,
@@ -108,7 +111,11 @@ class DelugeWebClient:
         """
         torrent_path = Path(torrent_path)
         with open(torrent_path, "rb") as tf:
-            args = {"add_paused": True, "seed_mode": True, "auto_managed": True}
+            args = {
+                "add_paused": add_paused,
+                "seed_mode": seed_mode,
+                "auto_managed": auto_managed,
+            }
             if save_directory:
                 args["download_location"] = str(save_directory)
             params = [
@@ -154,7 +161,14 @@ class DelugeWebClient:
         return results
 
     def add_torrent_magnet(
-        self, uri: str, save_directory: str = None, label: str = None, timeout: int = 30
+        self,
+        uri: str,
+        add_paused: bool = False,
+        seed_mode: bool = False,
+        auto_managed: bool = False,
+        save_directory: str = None,
+        label: str = None,
+        timeout: int = 30,
     ):
         """Adds a torrent from a magnet link.
 
@@ -167,12 +181,51 @@ class DelugeWebClient:
         Returns:
             Response: Response object.
         """
-        args = {"add_paused": True, "seed_mode": False, "auto_managed": True}
+        args = {
+            "add_paused": add_paused,
+            "seed_mode": seed_mode,
+            "auto_managed": auto_managed,
+        }
         if save_directory:
             args["download_location"] = str(save_directory)
         payload = {
             "method": "core.add_torrent_magnet",
             "params": [str(uri), args],
+            "id": 1,
+        }
+        return self._upload_helper(payload, label, timeout)
+
+    def add_torrent_url(
+        self,
+        url: str,
+        add_paused: bool = False,
+        seed_mode: bool = False,
+        auto_managed: bool = False,
+        save_directory: str = None,
+        label: str = None,
+        timeout: int = 30,
+    ):
+        """Adds a torrent from a URL.
+
+        Args:
+            url (str): URL input
+            save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
+            label (str, optional): Label to apply to uploaded torrent. Defaults to None.
+            timeout (int): Time to timeout.
+
+        Returns:
+            Response: Response object.
+        """
+        args = {
+            "add_paused": add_paused,
+            "seed_mode": seed_mode,
+            "auto_managed": auto_managed,
+        }
+        if save_directory:
+            args["download_location"] = str(save_directory)
+        payload = {
+            "method": "core.add_torrent_url",
+            "params": [str(url), args],
             "id": 1,
         }
         return self._upload_helper(payload, label, timeout)
