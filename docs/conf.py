@@ -9,7 +9,10 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("../"))
+sys.path.insert(0, os.path.abspath("_themes"))
+
+import deluge_web_client
 
 project = "deluge_web_client"
 copyright = "2024, jessielw"
@@ -20,14 +23,19 @@ author = "jessielw"
 
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon", 
+    "sphinx_autodoc_typehints", 
 ]
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
+# The name of the Pygments (syntax highlighting) style to use.
+pygments_style = "flask_theme_support.FlaskyStyle"
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "alabaster"
+html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
