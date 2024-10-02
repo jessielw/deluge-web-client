@@ -1,7 +1,7 @@
 .. deluge_web_client documentation master file, created by sphinx-quickstart.
 
-deluge_web_client documentation
-===============================
+Python Deluge Web Client 
+========================
 
 Overview
 --------
@@ -13,15 +13,5 @@ Contents
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
    modules  
-
-.. API Documentation
-.. -----------------
-
-.. .. automodule:: deluge_web_client
-..    :imported-members:
-..    :members:
-..    :undoc-members:
-..    :show-inheritance:
