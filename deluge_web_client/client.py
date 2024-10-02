@@ -239,7 +239,7 @@ class DelugeWebClient:
                 info_hash = str(result["result"])
                 if label:
                     self._apply_label(info_hash, str(label), timeout)
-                self._start_torrent(info_hash, timeout)
+                self.resume_torrent(info_hash, timeout)
                 return Response(result=info_hash, error=None, id=1)
             else:
                 response.raise_for_status()
@@ -263,9 +263,27 @@ class DelugeWebClient:
         set_label = self.set_label(info_hash, label, timeout)
         return add_label, set_label
 
-    def _start_torrent(self, info_hash: str, timeout: int = 30) -> Response:
-        """Helper method to start the torrent after it's been uploaded"""
-        payload = {"method": "core.resume_torrent", "params": [info_hash], "id": 1}
+    def get_free_space(self, path: PathLike[str] = None, timeout: int = 30) -> Response:
+        """Gets free space"""
+        payload = {
+            "method": "core.get_free_space",
+            "params": [str(path)] if path else [],
+            "id": 1,
+        }
+        return self.execute_call(payload, timeout)
+
+    def get_path_size(self, path: PathLike[str] = None, timeout: int = 30) -> Response:
+        """
+        Gets path size.
+
+        Returns the size of the file or folder `path` and `-1` if the path is
+        unaccessible (non-existent or insufficient privs)
+        """
+        payload = {
+            "method": "core.get_path_size",
+            "params": [str(path)] if path else [],
+            "id": 1,
+        }
         return self.execute_call(payload, timeout)
 
     def get_labels(self, timeout: int = 30) -> Response:
@@ -294,6 +312,24 @@ class DelugeWebClient:
             if "Label already exists" not in response.error.get("message"):
                 raise DelugeWebClientError(f"Error adding label:\n{response.error}")
         return response
+
+    def get_libtorrent_version(self, timeout: int = 30) -> Response:
+        """Gets libtorrent version"""
+        payload = {
+            "method": "core.get_libtorrent_version",
+            "params": [],
+            "id": 1,
+        }
+        return self.execute_call(payload, timeout)
+
+    def get_listen_port(self, timeout: int = 30) -> Response:
+        """Gets listen port"""
+        payload = {
+            "method": "core.get_listen_port",
+            "params": [],
+            "id": 1,
+        }
+        return self.execute_call(payload, timeout)
 
     def get_plugins(self, timeout: int = 30) -> Response:
         """Gets plugins"""
@@ -389,6 +425,75 @@ class DelugeWebClient:
         """
         payload = {"method": "core.test_listen_port", "params": [], "id": 1}
         return self.execute_call(payload, timeout).result
+
+    def pause_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
+        """Pause a specific torrent"""
+        payload = {
+            "method": "core.pause_torrent",
+            "params": [torrent_id],
+            "id": 1,
+        }
+        return self.execute_call(payload, timeout)
+
+    def pause_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
+        """Pause a list of torrents"""
+        if torrent_ids:
+            payload = {
+                "method": "core.pause_torrents",
+                "params": [torrent_ids],
+                "id": 1,
+            }
+            return self.execute_call(payload, timeout)
+
+    def remove_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
+        """Removes a specific torrent"""
+        payload = {
+            "method": "core.remove_torrent",
+            "params": [torrent_id],
+            "id": 1,
+        }
+        return self.execute_call(payload, timeout)
+
+    def remove_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
+        """Removes a list of torrents"""
+        if torrent_ids:
+            payload = {
+                "method": "core.remove_torrents",
+                "params": [torrent_ids],
+                "id": 1,
+            }
+            return self.execute_call(payload, timeout)
+
+    def resume_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
+        """Resumes a specific torrent"""
+        payload = {
+            "method": "core.resume_torrent",
+            "params": [torrent_id],
+            "id": 1,
+        }
+        return self.execute_call(payload, timeout)
+
+    def resume_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
+        """Resumes a list of torrents"""
+        if torrent_ids:
+            payload = {
+                "method": "core.resume_torrents",
+                "params": [torrent_ids],
+                "id": 1,
+            }
+            return self.execute_call(payload, timeout)
+
+    def set_torrent_trackers(
+        self, torrent_id: str, trackers: list[dict[str, any]], timeout: int = 30
+    ) -> Response:
+        """Sets a torrents tracker list. trackers will be ``[{"url", "tier"}]``"""
+        if torrent_id:
+            payload = {
+                "method": "core.set_torrent_trackers",
+                "params": [torrent_id, trackers],
+                "id": 1,
+            }
+            return self.execute_call(payload, timeout)
 
     def execute_call(
         self, payload: dict, handle_error: bool = True, timeout: int = 30
