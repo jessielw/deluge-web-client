@@ -9,9 +9,6 @@ from .exceptions import DelugeWebClientError
 from .response import Response
 
 
-# TODO: add other useful rpc methods https://deluge.readthedocs.io/en/deluge-2.0.1/reference/api.html
-
-
 class DelugeWebClient:
     HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
     LOGIN_RETRIES = 3
@@ -22,12 +19,12 @@ class DelugeWebClient:
         self.password = password
 
     def __enter__(self) -> "DelugeWebClient":
-        """Connect to client while using with statement."""
+        """Login and connect to client while using with statement."""
         self.login()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        """Disconnect from client at end of with statement."""
+        """End of with statement."""
         return False
 
     def login(self, timeout: int = 30) -> Response:
