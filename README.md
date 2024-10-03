@@ -6,7 +6,7 @@
 ![Python Versions](https://img.shields.io/pypi/pyversions/deluge-web-client)
 ![License](https://img.shields.io/github/license/jessielw/deluge-web-client)
 
-Python client implementation for Deluge Web API
+Python client implementation for [Deluge](https://deluge-torrent.org/) Web API
 
 </div>
 
@@ -30,11 +30,11 @@ python -m pip install deluge-web-client
 poetry add deluge-web-client
 ```
 
-## Before Getting Started
+## Getting Started
 
 Before getting started, ensure that you have a running instance of Deluge with the WebUI enabled. You will also need to have a user set up for authentication. For guidance on setting up the WebUI, visit the [Deluge setup guide](https://deluge-torrent.org/userguide/). Another good tutorial is [Trash-Guides basic setup](https://trash-guides.info/Downloaders/Deluge/Basic-Setup/).
 
-## Getting Started - Basic
+## Basic Usage
 
 ```python
 from deluge_web_client import DelugeWebClient
@@ -70,7 +70,7 @@ pause_torrent = client.pause_torrent("0407326f9d74629d299b525bd5f9b5dd583xxxx")
 remove_torrent = client.remove_torrent("0407326f9d74629d299b525bd5f9b5dd583xxxx")
 ```
 
-## Getting Started - Context Manager
+## Context Manager
 
 ```python
 from deluge_web_client import DelugeWebClient
