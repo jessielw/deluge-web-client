@@ -4,6 +4,8 @@ from typing import Union
 
 @dataclass
 class Response:
+    """Object that is filled on each request"""
+
     __slots__ = ("result", "error", "id")
     result: Union[bool, str, list]
     error: Union[None, str]

@@ -1,2 +1,2 @@
 class DelugeWebClientError(Exception):
-    pass
+    """Handles all expected exceptions"""
