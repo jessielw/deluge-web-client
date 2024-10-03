@@ -3,11 +3,36 @@ name = "deluge-web-client"
 version = "1.0.1"
 description = "Deluge Web Client"
 authors = ["jlw_4049 <jessielw4049@gmail.com>"]
+maintainers = ["jlw_4049 <jessielw4049@gmail.com>"]
+keywords = ["python", "deluge", "api", "client", "torrent", "torrents", "webui", "web"]
 license = "MIT"
 readme = "README.md"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Utilities",
+    "Topic :: Communications :: File Sharing",
+]
+
+[tool.project.urls]
+"Homepage" = "https://github.com/jessielw/deluge-web-client"
+"Documenatation" = "https://deluge-web-client.readthedocs.io"
+"Source" = "https://github.com/jessielw/deluge-web-client"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<=3.13"
+python = ">=3.9"
 requests = "^2.32.3"
 
 
@@ -15,7 +40,7 @@ requests = "^2.32.3"
 black = "^24.8.0"
 sphinx = "7.4.7"
 sphinx-autodoc-typehints = "2.3.0"
-sphinx-rtd-theme = "2.0.0"
+furo = "^2024.8.6"
 
 [build-system]
 requires = ["poetry-core"]
