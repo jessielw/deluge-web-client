@@ -2,30 +2,37 @@
 
 # Deluge Web API Client
 
+![PyPI Version](https://img.shields.io/pypi/v/deluge-web-client)
+![Python Versions](https://img.shields.io/pypi/pyversions/deluge-web-client)
+![License](https://img.shields.io/github/license/jessielw/deluge-web-client)
+
 Python client implementation for Deluge Web API
 
 </div>
 
-Currently supports qBittorrent [v2.1.1](https://deluge-torrent.org).
+Currently supports Deluge [v2.1.1](https://deluge-torrent.org).
 
 User Guide and API Reference available on [Read the Docs](https://deluge-web-client.readthedocs.io).
 
 ## Features
 
-- Access to most of the Web API as well as most of the **core** methods (accessed via RPC). [Web API](https://deluge.readthedocs.io/en/deluge-2.0.1/reference/webapi.html) / [RPC API](https://deluge.readthedocs.io/en/deluge-2.0.1/reference/api.html)
+- Provides access to the majority of Web API methods as well as key **core** functionalities through RPC. For more details, see the official [Web API Documentation](https://deluge.readthedocs.io/en/deluge-2.0.1/reference/webapi.html) and [RPC API Documentation](https://deluge.readthedocs.io/en/deluge-2.0.1/reference/api.html).
+
 - Allows you to use direct **http** connections, allowing access via **reverse proxy** or any **direct url**.
 
 ## Installation
 
-Install via pip from [PyPI](https://pypi.org/project/deluge-web-client/)
+Install via pip from [PyPI](https://pypi.org/project/deluge-web-client/):
 
 ```bash
 python -m pip install deluge-web-client
+# or
+poetry add deluge-web-client
 ```
 
 ## Before Getting Started
 
-This assumes you have a running Deluge instance with the WebUI enabled and a user of your choice setup.
+Before getting started, ensure that you have a running instance of Deluge with the WebUI enabled. You will also need to have a user set up for authentication. For guidance on setting up the WebUI, visit the [Deluge setup guide](https://deluge-torrent.org/userguide/). Another good tutorial is [Trash-Guides basic setup](https://trash-guides.info/Downloaders/Deluge/Basic-Setup/).
 
 ## Getting Started - Basic
 
@@ -50,8 +57,8 @@ upload = client.upload_torrent(
     label=None, # optional
 )
 # this will return a `Response` object
->>> print(upload)
->>> Response(result=True, error=None, id=1)
+print(upload)
+# Response(result=True, error=None, id=1)
 
 # retrieve and show all torrents
 all_torrents = client.get_torrents_status()
@@ -78,20 +85,14 @@ with DelugeWebClient(url="https://site.net/deluge", password="example_password")
         save_directory=None, # optional
         label=None, # optional
     )
-    >>> print(upload)
-    >>> Response(result="0407326f9d74629d299b525bd5f9b5dd583xxxx", error=None, id=1)
+    print(upload)
+    # Response(result="0407326f9d74629d299b525bd5f9b5dd583xxxx", error=None, id=1)
 ```
 
 ## Notes
 
-You don't need to explicitly call `client.disconnect()` with either of the above approaches. Calling
-this method actually disconnects your user from this instance **and** all instances inside of your
-browser.
+Calling `client.disconnect()` will log the user out of the WebUI in both the client and **any connected web browser**. Be cautious if you're also logged in to the WebUI via your browser as this will terminate your session there as well.
 
 ## Access RPC Directly
 
-This package utilizes HTTP to connect to your client, it relies on the **Web API / JSON** to handle
-these calls. It's totally capable of making **all** core calls to the deluge back end. However, if
-you want a package explicitly designed for **RPC** only you should look at
-[deluge-client](https://github.com/JohnDoee/deluge-client). This project was inspired from **deluge-client** as well
-as [qbittorrent-api](https://github.com/rmartin16/qbittorrent-api).
+This package uses HTTP to connect to the Deluge client, relying on the **Web API / JSON** to handle these calls. It's fully capable of making **all** core calls to the Deluge backend. However, if you are looking for a package focused solely on **RPC**, consider [deluge-client](https://github.com/JohnDoee/deluge-client), which served as inspiration for this project alongside [qbittorrent-api](https://github.com/rmartin16/qbittorrent-api).
