@@ -24,7 +24,8 @@ class DelugeWebClient:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        """End of with statement."""
+        """End of with statement, closes the session."""
+        self.close_session()
         return False
 
     def login(self, timeout: int = 30) -> Response:
@@ -77,11 +78,23 @@ class DelugeWebClient:
             )
         }
 
+    def close_session(self) -> None:
+        """
+        Closes the `DelugeWebClient` session.
+
+        This is handled automatically
+        when `DelugeWebClient` is used in a context manager.
+        """
+        self.session.close()
+
     def disconnect(self, timeout: int = 30) -> Response:
         """
         Disconnects from the Web UI.
         Note: This disconnects from all of your logged in instances outside of this program as well
-        that is tied to that user/password. Only use this IF needed not on each call.
+        that is tied to that user/password. Only use this IF needed not on each call or to end the
+        session.
+
+        If you're simply wanting to close the session, you can call `close_session()`
         """
         payload = {"method": "web.disconnect", "params": [], "id": 1}
         return self.execute_call(payload, timeout)
