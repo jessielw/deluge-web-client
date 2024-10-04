@@ -1,9 +1,10 @@
 import base64
-import requests
 from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
 from typing import Union
+
+import requests
 
 from .exceptions import DelugeWebClientError
 from .response import Response
@@ -12,6 +13,7 @@ from .response import Response
 class DelugeWebClient:
     HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
     LOGIN_RETRIES = 3
+    ID = 1
 
     def __init__(self, url: str, password: str) -> None:
         self.session = requests.Session()
@@ -26,7 +28,6 @@ class DelugeWebClient:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         """End of with statement, closes the session."""
         self.close_session()
-        return False
 
     def login(self, timeout: int = 30) -> Response:
         """
@@ -57,8 +58,12 @@ class DelugeWebClient:
 
     def _attempt_login(self, timeout: int) -> Response:
         """Attempt to log in to the Web UI"""
-        login_payload = {"method": "auth.login", "params": [self.password], "id": 1}
-        return self.execute_call(login_payload, timeout)
+        login_payload = {
+            "method": "auth.login",
+            "params": [self.password],
+            "id": self.ID,
+        }
+        return self.execute_call(login_payload, timeout=timeout)
 
     def _connect_to_first_host(self, timeout: int) -> dict[str, Response]:
         """Connect to the first available host with retry logic"""
@@ -81,7 +86,6 @@ class DelugeWebClient:
     def close_session(self) -> None:
         """
         Closes the `DelugeWebClient` session.
-
         This is handled automatically
         when `DelugeWebClient` is used in a context manager.
         """
@@ -91,13 +95,10 @@ class DelugeWebClient:
         """
         Disconnects from the Web UI.
         Note: This disconnects from all of your logged in instances outside of this program as well
-        that is tied to that user/password. Only use this IF needed not on each call or to end the
-        session.
-
-        If you're simply wanting to close the session, you can call `close_session()`
+        that is tied to that user/password. Only use this IF needed not on each call.
         """
-        payload = {"method": "web.disconnect", "params": [], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {"method": "web.disconnect", "params": [], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout)
 
     def upload_torrent(
         self,
@@ -115,6 +116,9 @@ class DelugeWebClient:
 
         Args:
             torrent_path (PathLike[str], Path): Path to torrent file (example.torrent).
+            add_paused (bool): indicates whether torrent shoudl be added paused. Default to False.
+            seed_mode (bool): whether to skip rechecking when adding. Default to recheck (False).
+            auto_managed (bool): sets an added torrents to be auto-managed by user settings. Defaults to False.
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
             label (str, optional): Label to apply to uploaded torrent. Defaults to None.
             timeout (int): Time to timeout.
@@ -136,7 +140,11 @@ class DelugeWebClient:
                 str(base64.b64encode(tf.read()), encoding="utf-8"),
                 args,
             ]
-            payload = {"method": "core.add_torrent_file", "params": params, "id": 1}
+            payload = {
+                "method": "core.add_torrent_file",
+                "params": params,
+                "id": self.ID,
+            }
             return self._upload_helper(payload, label, timeout)
 
     def upload_torrents(
@@ -163,7 +171,10 @@ class DelugeWebClient:
             torrent_path = Path(torrent_path)
             try:
                 response = self.upload_torrent(
-                    torrent_path, save_directory, label, timeout
+                    torrent_path,
+                    save_directory=save_directory,
+                    label=label,
+                    timeout=timeout,
                 )
                 results[torrent_path.stem] = response
             except Exception as e:
@@ -187,12 +198,16 @@ class DelugeWebClient:
 
         Args:
             uri (str): Magnet input
+            add_paused (bool): indicates whether torrent shoudl be added paused. Default to False.
+            seed_mode (bool): whether to skip rechecking when adding. Default to recheck (False).
+            auto_managed (bool): sets an added torrents to be auto-managed by user settings. Defaults to False.
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
             label (str, optional): Label to apply to uploaded torrent. Defaults to None.
             timeout (int): Time to timeout.
 
         Returns:
             Response: Response object.
+
         """
         args = {
             "add_paused": add_paused,
@@ -204,7 +219,7 @@ class DelugeWebClient:
         payload = {
             "method": "core.add_torrent_magnet",
             "params": [str(uri), args],
-            "id": 1,
+            "id": self.ID,
         }
         return self._upload_helper(payload, label, timeout)
 
@@ -222,6 +237,9 @@ class DelugeWebClient:
 
         Args:
             url (str): URL input
+            add_paused (bool): indicates whether torrent shoudl be added paused. Default to False.
+            seed_mode (bool): whether to skip rechecking when adding. Default to recheck (False).
+            auto_managed (bool): sets an added torrents to be auto-managed by user settings. Defaults to False.
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
             label (str, optional): Label to apply to uploaded torrent. Defaults to None.
             timeout (int): Time to timeout.
@@ -239,7 +257,7 @@ class DelugeWebClient:
         payload = {
             "method": "core.add_torrent_url",
             "params": [str(url), args],
-            "id": 1,
+            "id": self.ID,
         }
         return self._upload_helper(payload, label, timeout)
 
@@ -259,7 +277,7 @@ class DelugeWebClient:
 
     def _apply_label(
         self, info_hash: str, label: str, timeout: int
-    ) -> tuple[bool, bool]:
+    ) -> tuple[Response, Response]:
         """
         Used internally to add and apply labels as needed for
         the `upload_torrent` method
@@ -281,9 +299,9 @@ class DelugeWebClient:
         payload = {
             "method": "core.get_free_space",
             "params": [str(path)] if path else [],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def get_path_size(self, path: PathLike[str] = None, timeout: int = 30) -> Response:
         """
@@ -295,33 +313,33 @@ class DelugeWebClient:
         payload = {
             "method": "core.get_path_size",
             "params": [str(path)] if path else [],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def get_labels(self, timeout: int = 30) -> Response:
         """Gets defined labels"""
-        payload = {"method": "label.get_labels", "params": [], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {"method": "label.get_labels", "params": [], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout)
 
     def set_label(self, info_hash: str, label: str, timeout: int = 30) -> Response:
         """Sets the label for a specific torrent"""
         payload = {
             "method": "label.set_torrent",
             "params": [info_hash, label.lower()],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def add_label(self, label: str, timeout: int = 30) -> Response:
         """Adds a label to the client, ignoring labels if they already exist"""
         payload = {
             "method": "label.add",
             "params": [label.lower()],
-            "id": 1,
+            "id": self.ID,
         }
         response = self.execute_call(payload, handle_error=False, timeout=timeout)
-        if response.error != None:
+        if response.error is not None:
             if "Label already exists" not in response.error.get("message"):
                 raise DelugeWebClientError(f"Error adding label:\n{response.error}")
         return response
@@ -331,28 +349,32 @@ class DelugeWebClient:
         payload = {
             "method": "core.get_libtorrent_version",
             "params": [],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def get_listen_port(self, timeout: int = 30) -> Response:
         """Gets listen port"""
         payload = {
             "method": "core.get_listen_port",
             "params": [],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def get_plugins(self, timeout: int = 30) -> Response:
         """Gets plugins"""
-        payload = {"method": "web.get_plugins", "params": [], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {"method": "web.get_plugins", "params": [], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout)
 
     def get_torrent_files(self, torrent_id: str, timeout: int = 30) -> Response:
         """Gets the files for a torrent in tree format"""
-        payload = {"method": "web.get_torrent_files", "params": [torrent_id], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {
+            "method": "web.get_torrent_files",
+            "params": [torrent_id],
+            "id": self.ID,
+        }
+        return self.execute_call(payload, timeout=timeout)
 
     def get_torrent_status(
         self,
@@ -366,7 +388,7 @@ class DelugeWebClient:
 
         Args:
             torrent_id (str): Torrent hash of for a single torrent.
-            keys (dict): Filtering criteria for torrents.
+            keys (list[str]): List of specific torrent's property keys to fetch.
             diff (bool): Whether to return the status difference.
             timeout (int): Time to timeout for the call.
 
@@ -376,9 +398,9 @@ class DelugeWebClient:
         payload = {
             "method": "core.get_torrent_status",
             "params": [torrent_id, keys, diff],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def get_torrents_status(
         self,
@@ -393,7 +415,7 @@ class DelugeWebClient:
 
         Args:
             filter_dict (dict): Filtering criteria for torrents.
-            keys (list[str]): List of specific torrent IDs to fetch status for.
+            keys (list[str]): List of specific torrents' property keys to fetch.
             diff (bool): Whether to return the status difference.
             timeout (int): Time to timeout for the call.
 
@@ -403,32 +425,32 @@ class DelugeWebClient:
         payload = {
             "method": "core.get_torrents_status",
             "params": [filter_dict, keys, diff],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def check_connected(self, timeout: int = 30) -> Response:
         """
         Use the `web.connected` method to get a boolean response if the Web UI is
         connected to a deluged host
         """
-        payload = {"method": "web.connected", "params": [], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {"method": "web.connected", "params": [], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout)
 
     def get_hosts(self, timeout: int = 30) -> Response:
         """Returns hosts we're connected to currently"""
-        payload = {"method": "web.get_hosts", "params": [], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {"method": "web.get_hosts", "params": [], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout)
 
     def get_host_status(self, host_id: str, timeout: int = 30) -> Response:
         """Get the deluged host status `<hostID>`"""
-        payload = {"method": "web.get_host_status", "params": [host_id], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {"method": "web.get_host_status", "params": [host_id], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout)
 
     def connect_to_host(self, host_id: str, timeout: int = 30) -> Response:
         """To connect to deluged with `<hostID>`"""
-        payload = {"method": "web.connect", "params": [host_id], "id": 1}
-        return self.execute_call(payload, timeout)
+        payload = {"method": "web.connect", "params": [host_id], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout)
 
     def test_listen_port(self, timeout: int = 30) -> bool:
         """Checks if the active port is open
@@ -436,17 +458,17 @@ class DelugeWebClient:
         Returns:
             bool: If active port is opened or closed
         """
-        payload = {"method": "core.test_listen_port", "params": [], "id": 1}
-        return self.execute_call(payload, timeout).result
+        payload = {"method": "core.test_listen_port", "params": [], "id": self.ID}
+        return self.execute_call(payload, timeout=timeout).result
 
     def pause_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Pause a specific torrent"""
         payload = {
             "method": "core.pause_torrent",
             "params": [torrent_id],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def pause_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
         """Pause a list of torrents"""
@@ -454,18 +476,18 @@ class DelugeWebClient:
             payload = {
                 "method": "core.pause_torrents",
                 "params": [torrent_ids],
-                "id": 1,
+                "id": self.ID,
             }
-            return self.execute_call(payload, timeout)
+            return self.execute_call(payload, timeout=timeout)
 
     def remove_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Removes a specific torrent"""
         payload = {
             "method": "core.remove_torrent",
             "params": [torrent_id],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def remove_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
         """Removes a list of torrents"""
@@ -473,18 +495,18 @@ class DelugeWebClient:
             payload = {
                 "method": "core.remove_torrents",
                 "params": [torrent_ids],
-                "id": 1,
+                "id": self.ID,
             }
-            return self.execute_call(payload, timeout)
+            return self.execute_call(payload, timeout=timeout)
 
     def resume_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Resumes a specific torrent"""
         payload = {
             "method": "core.resume_torrent",
             "params": [torrent_id],
-            "id": 1,
+            "id": self.ID,
         }
-        return self.execute_call(payload, timeout)
+        return self.execute_call(payload, timeout=timeout)
 
     def resume_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
         """Resumes a list of torrents"""
@@ -492,9 +514,9 @@ class DelugeWebClient:
             payload = {
                 "method": "core.resume_torrents",
                 "params": [torrent_ids],
-                "id": 1,
+                "id": self.ID,
             }
-            return self.execute_call(payload, timeout)
+            return self.execute_call(payload, timeout=timeout)
 
     def set_torrent_trackers(
         self, torrent_id: str, trackers: list[dict[str, any]], timeout: int = 30
@@ -504,9 +526,9 @@ class DelugeWebClient:
             payload = {
                 "method": "core.set_torrent_trackers",
                 "params": [torrent_id, trackers],
-                "id": 1,
+                "id": self.ID,
             }
-            return self.execute_call(payload, timeout)
+            return self.execute_call(payload, timeout=timeout)
 
     def execute_call(
         self, payload: dict, handle_error: bool = True, timeout: int = 30
@@ -526,6 +548,7 @@ class DelugeWebClient:
         with self.session.post(
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
+            self.ID += 1
             if response.ok:
                 response_json = response.json()
                 data = Response(
@@ -539,6 +562,7 @@ class DelugeWebClient:
                     )
                 return data
             else:
+                self.ID += 1
                 raise DelugeWebClientError(
                     f"Failed to execute call. Response code: {response.status_code}. Reason: {response.reason}"
                 )
