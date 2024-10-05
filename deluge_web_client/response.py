@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Optional
 
 
 @dataclass
@@ -9,4 +9,4 @@ class Response:
     __slots__ = ("result", "error", "id")
     result: Union[bool, str, list, None]
     error: Union[None, str, dict]
-    id: int | None
+    id: Optional[int]
