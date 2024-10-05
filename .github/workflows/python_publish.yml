@@ -40,6 +40,13 @@ jobs:
     needs: mypy_check # Only run this job if mypy_check passes
     runs-on: ubuntu-latest
 
+    environment:
+      name: pypi
+      url: https://pypi.org/p/deluge-web-client/
+
+    permissions:
+      id-token: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -58,5 +65,5 @@ jobs:
         run: |
           python -m build  # Build the distribution files (wheel and source dist)
 
-      - name: Publish to TestPyPI
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
