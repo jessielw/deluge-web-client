@@ -5,6 +5,7 @@
 ![PyPI Version](https://img.shields.io/pypi/v/deluge-web-client)
 ![Python Versions](https://img.shields.io/pypi/pyversions/deluge-web-client)
 ![License](https://img.shields.io/github/license/jessielw/deluge-web-client)
+[![CI Pipeline](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml)
 
 Python client implementation for [Deluge](https://deluge-torrent.org/) Web API
 
