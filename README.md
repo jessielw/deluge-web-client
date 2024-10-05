@@ -7,6 +7,7 @@
 ![License](https://img.shields.io/github/license/jessielw/deluge-web-client)
 [![Mypy](https://github.com/jessielw/deluge-web-client/actions/workflows/mypy.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/mypy.yml)
 [![PyPI](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml)
+[![Ruff](https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml)
 
 Python client implementation for [Deluge](https://deluge-torrent.org/) Web API
 
