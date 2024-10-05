@@ -29,7 +29,7 @@ jobs:
 
       - name: Run mypy
         run: |
-          mypy .  # Adjust the path to point to your package or files
+          mypy deluge_web_client
 
   publish_to_testpypi:
     name: Publish Python to TestPyPI
