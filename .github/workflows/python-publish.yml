@@ -32,8 +32,17 @@ jobs:
           mypy .  # Adjust the path to point to your package or files
 
   publish_to_testpypi:
+    name: Publish Python to TestPyPI
     needs: mypy_check # Only run this job if mypy_check passes
     runs-on: ubuntu-latest
+
+    environment: 
+      name: testpypi
+      url: https://test.pypi.org/p/deluge-web-client
+
+    permissions:
+      id-token: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -53,14 +62,6 @@ jobs:
           python -m build  # Build the distribution files (wheel and source dist)
 
       - name: Publish to TestPyPI
-        # run: |
-        #   python -m twine upload dist/* --repository-url https://test.pypi.org/legacy/ --skip-existing --non-interactive
-        # env:
-        #   user: __token__
-        #   password: ${{ secrets.PYPI_PASSWORD }}
         uses: pypa/gh-action-pypi-publish@release/v1     
         with:
-          repository-url: https://test.pypi.org/legacy/      
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}        
-
+          repository-url: https://test.pypi.org/legacy/         
