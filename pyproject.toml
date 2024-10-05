@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deluge-web-client"
-version = "1.0.2"
+version = "1.0.3"
 description = "Deluge Web Client"
 authors = ["jlw_4049 <jessielw4049@gmail.com>"]
 maintainers = ["jlw_4049 <jessielw4049@gmail.com>"]
@@ -37,11 +37,17 @@ requests = "^2.32.3"
 
 
 [tool.poetry.group.dev.dependencies]
-black = "^24.8.0"
 sphinx = "7.4.7"
 sphinx-autodoc-typehints = "2.3.0"
 furo = "^2024.8.6"
+mypy = "^1.11.2"
+types-requests = "^2.32.0.20240914"
+types-pygments = "^2.18.0.20240506"
+ruff = "^0.6.9"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
