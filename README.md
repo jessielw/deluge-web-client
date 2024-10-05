@@ -10,8 +10,6 @@ Python client implementation for [Deluge](https://deluge-torrent.org/) Web API
 
 </div>
 
-Currently supports Deluge [v2.1.1](https://deluge-torrent.org).
-
 User Guide and API Reference available on [Read the Docs](https://deluge-web-client.readthedocs.io).
 
 ## Features
