@@ -1,13 +1,13 @@
 import base64
+import requests
 from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional, Any
 
-import requests
-
-from .exceptions import DelugeWebClientError
-from .response import Response
+from deluge_web_client.exceptions import DelugeWebClientError
+from deluge_web_client.response import Response
+from deluge_web_client.types import ParamArgs
 
 
 class DelugeWebClient:
@@ -71,11 +71,19 @@ class DelugeWebClient:
 
         if hosts.result:
             for _ in range(self.LOGIN_RETRIES):
-                host_id = hosts.result[0][0]
-                connect_response = self.connect_to_host(host_id)
+                if (
+                    isinstance(hosts.result, list)
+                    and len(hosts.result) > 0
+                    and isinstance(hosts.result[0], list)
+                    and len(hosts.result[0]) > 0
+                ):
+                    host_id = hosts.result[0][0]
+                    connect_response = self.connect_to_host(host_id)
 
-                if connect_response.result:
-                    return {"connected_now": self.check_connected(timeout)}
+                    if connect_response.result:
+                        return {"connected_now": self.check_connected(timeout)}
+                else:
+                    raise DelugeWebClientError("Failed to get valid host id")
 
         return {
             "connected_now": Response(
@@ -106,8 +114,8 @@ class DelugeWebClient:
         add_paused: bool = False,
         seed_mode: bool = False,
         auto_managed: bool = False,
-        save_directory: str = None,
-        label: str = None,
+        save_directory: Optional[str] = None,
+        label: Optional[str] = None,
         timeout: int = 30,
     ) -> Response:
         """
@@ -116,7 +124,7 @@ class DelugeWebClient:
 
         Args:
             torrent_path (PathLike[str], Path): Path to torrent file (example.torrent).
-            add_paused (bool): indicates whether torrent shoudl be added paused. Default to False.
+            add_paused (bool): indicates whether torrent should be added paused. Default to False.
             seed_mode (bool): whether to skip rechecking when adding. Default to recheck (False).
             auto_managed (bool): sets an added torrents to be auto-managed by user settings. Defaults to False.
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
@@ -128,11 +136,12 @@ class DelugeWebClient:
         """
         torrent_path = Path(torrent_path)
         with open(torrent_path, "rb") as tf:
-            args = {
-                "add_paused": add_paused,
-                "seed_mode": seed_mode,
-                "auto_managed": auto_managed,
-            }
+            args = ParamArgs(
+                add_paused=add_paused,
+                seed_mode=seed_mode,
+                auto_managed=auto_managed,
+                download_location=None,
+            )
             if save_directory:
                 args["download_location"] = str(save_directory)
             params = [
@@ -150,8 +159,8 @@ class DelugeWebClient:
     def upload_torrents(
         self,
         torrents: Iterable[Union[PathLike[str], Path]],
-        save_directory: str = None,
-        label: str = None,
+        save_directory: Optional[str] = None,
+        label: Optional[str] = None,
         timeout: int = 30,
     ) -> dict[str, Response]:
         """
@@ -190,8 +199,8 @@ class DelugeWebClient:
         add_paused: bool = False,
         seed_mode: bool = False,
         auto_managed: bool = False,
-        save_directory: str = None,
-        label: str = None,
+        save_directory: Optional[str] = None,
+        label: Optional[str] = None,
         timeout: int = 30,
     ):
         """Adds a torrent from a magnet link.
@@ -209,11 +218,12 @@ class DelugeWebClient:
             Response: Response object.
 
         """
-        args = {
-            "add_paused": add_paused,
-            "seed_mode": seed_mode,
-            "auto_managed": auto_managed,
-        }
+        args = ParamArgs(
+            add_paused=add_paused,
+            seed_mode=seed_mode,
+            auto_managed=auto_managed,
+            download_location=None,
+        )
         if save_directory:
             args["download_location"] = str(save_directory)
         payload = {
@@ -229,8 +239,8 @@ class DelugeWebClient:
         add_paused: bool = False,
         seed_mode: bool = False,
         auto_managed: bool = False,
-        save_directory: str = None,
-        label: str = None,
+        save_directory: Optional[str] = None,
+        label: Optional[str] = None,
         timeout: int = 30,
     ):
         """Adds a torrent from a URL.
@@ -247,11 +257,12 @@ class DelugeWebClient:
         Returns:
             Response: Response object.
         """
-        args = {
-            "add_paused": add_paused,
-            "seed_mode": seed_mode,
-            "auto_managed": auto_managed,
-        }
+        args = ParamArgs(
+            add_paused=add_paused,
+            seed_mode=seed_mode,
+            auto_managed=auto_managed,
+            download_location=None,
+        )
         if save_directory:
             args["download_location"] = str(save_directory)
         payload = {
@@ -261,7 +272,9 @@ class DelugeWebClient:
         }
         return self._upload_helper(payload, label, timeout)
 
-    def _upload_helper(self, payload: dict, label: str, timeout: int) -> Response:
+    def _upload_helper(
+        self, payload: dict, label: Optional[str], timeout: int
+    ) -> Response:
         with self.session.post(
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
@@ -273,7 +286,9 @@ class DelugeWebClient:
                 self.resume_torrent(info_hash, timeout)
                 return Response(result=info_hash, error=None, id=1)
             else:
-                response.raise_for_status()
+                raise DelugeWebClientError(
+                    f"Failed to upload file. Status code: {response.status_code}, Reason: {response.reason}"
+                )
 
     def _apply_label(
         self, info_hash: str, label: str, timeout: int
@@ -294,7 +309,9 @@ class DelugeWebClient:
         set_label = self.set_label(info_hash, label, timeout)
         return add_label, set_label
 
-    def get_free_space(self, path: PathLike[str] = None, timeout: int = 30) -> Response:
+    def get_free_space(
+        self, path: Optional[PathLike[str]] = None, timeout: int = 30
+    ) -> Response:
         """Gets free space"""
         payload = {
             "method": "core.get_free_space",
@@ -303,7 +320,9 @@ class DelugeWebClient:
         }
         return self.execute_call(payload, timeout=timeout)
 
-    def get_path_size(self, path: PathLike[str] = None, timeout: int = 30) -> Response:
+    def get_path_size(
+        self, path: Optional[PathLike[str]] = None, timeout: int = 30
+    ) -> Response:
         """
         Gets path size.
 
@@ -339,10 +358,15 @@ class DelugeWebClient:
             "id": self.ID,
         }
         response = self.execute_call(payload, handle_error=False, timeout=timeout)
-        if response.error is not None:
-            if "Label already exists" not in response.error.get("message"):
-                raise DelugeWebClientError(f"Error adding label:\n{response.error}")
-        return response
+        if response.error is None:
+            return response
+
+        if isinstance(
+            response.error, dict
+        ) and "Label already exists" in response.error.get("message", ""):
+            return response
+
+        raise DelugeWebClientError(f"Error adding label:\n{response.error}")
 
     def get_libtorrent_version(self, timeout: int = 30) -> Response:
         """Gets libtorrent version"""
@@ -459,7 +483,10 @@ class DelugeWebClient:
             bool: If active port is opened or closed
         """
         payload = {"method": "core.test_listen_port", "params": [], "id": self.ID}
-        return self.execute_call(payload, timeout=timeout).result
+        check_port = self.execute_call(payload, timeout=timeout)
+        if check_port.result is not None:
+            return True
+        return False
 
     def pause_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Pause a specific torrent"""
@@ -472,13 +499,12 @@ class DelugeWebClient:
 
     def pause_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
         """Pause a list of torrents"""
-        if torrent_ids:
-            payload = {
-                "method": "core.pause_torrents",
-                "params": [torrent_ids],
-                "id": self.ID,
-            }
-            return self.execute_call(payload, timeout=timeout)
+        payload = {
+            "method": "core.pause_torrents",
+            "params": [torrent_ids],
+            "id": self.ID,
+        }
+        return self.execute_call(payload, timeout=timeout)
 
     def remove_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Removes a specific torrent"""
@@ -491,13 +517,12 @@ class DelugeWebClient:
 
     def remove_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
         """Removes a list of torrents"""
-        if torrent_ids:
-            payload = {
-                "method": "core.remove_torrents",
-                "params": [torrent_ids],
-                "id": self.ID,
-            }
-            return self.execute_call(payload, timeout=timeout)
+        payload = {
+            "method": "core.remove_torrents",
+            "params": [torrent_ids],
+            "id": self.ID,
+        }
+        return self.execute_call(payload, timeout=timeout)
 
     def resume_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Resumes a specific torrent"""
@@ -510,25 +535,23 @@ class DelugeWebClient:
 
     def resume_torrents(self, torrent_ids: list, timeout: int = 30) -> Response:
         """Resumes a list of torrents"""
-        if torrent_ids:
-            payload = {
-                "method": "core.resume_torrents",
-                "params": [torrent_ids],
-                "id": self.ID,
-            }
-            return self.execute_call(payload, timeout=timeout)
+        payload = {
+            "method": "core.resume_torrents",
+            "params": [torrent_ids],
+            "id": self.ID,
+        }
+        return self.execute_call(payload, timeout=timeout)
 
     def set_torrent_trackers(
-        self, torrent_id: str, trackers: list[dict[str, any]], timeout: int = 30
+        self, torrent_id: str, trackers: list[dict[str, Any]], timeout: int = 30
     ) -> Response:
         """Sets a torrents tracker list. trackers will be ``[{"url", "tier"}]``"""
-        if torrent_id:
-            payload = {
-                "method": "core.set_torrent_trackers",
-                "params": [torrent_id, trackers],
-                "id": self.ID,
-            }
-            return self.execute_call(payload, timeout=timeout)
+        payload = {
+            "method": "core.set_torrent_trackers",
+            "params": [torrent_id, trackers],
+            "id": self.ID,
+        }
+        return self.execute_call(payload, timeout=timeout)
 
     def execute_call(
         self, payload: dict, handle_error: bool = True, timeout: int = 30
@@ -568,16 +591,15 @@ class DelugeWebClient:
                 )
 
     @staticmethod
-    def _normalize_exception(exc_str: any) -> Union[str, None]:
+    def _normalize_exception(exc_str: Any) -> Union[str, Any]:
         """
         Removes the un-needed ending square bracket and stripping extra white
         space if input is a string
         """
-        if exc_str:
-            if isinstance(exc_str, str):
-                return exc_str.rstrip("]").strip()
-            else:
-                return exc_str
+        if isinstance(exc_str, str):
+            return exc_str.rstrip("]").strip()
+        else:
+            return exc_str
 
     @staticmethod
     def _build_url(url: str) -> str:

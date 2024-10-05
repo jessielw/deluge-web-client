@@ -8,5 +8,5 @@ class Response:
 
     __slots__ = ("result", "error", "id")
     result: Union[bool, str, list, None]
-    error: Union[None, str]
+    error: Union[None, str, dict]
     id: int | None
