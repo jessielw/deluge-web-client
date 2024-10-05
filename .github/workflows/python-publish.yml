@@ -3,10 +3,10 @@ name: Publish to TestPyPI
 on:
   push:
     branches:
-      - typing  # Only run this workflow on pushes to the main branch
+      - typing # Only run this workflow on pushes to the main branch
   pull_request:
     branches:
-      - typing  # Optional: also run on PRs to main for mypy check
+      - typing # Optional: also run on PRs to main for mypy check
 
 jobs:
   mypy_check:
@@ -14,47 +14,47 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9' 
-        
+          python-version: "3.9"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install mypy
           pip install types-requests==2.32.0.20240914
           pip install types-pygments==2.18.0.20240506
-        
+
       - name: Run mypy
         run: |
           mypy .  # Adjust the path to point to your package or files
 
   publish_to_testpypi:
-    needs: mypy_check  # Only run this job if mypy_check passes
+    needs: mypy_check # Only run this job if mypy_check passes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-        
+          python-version: "3.10"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install build twine
-        
+
       - name: Build the package
         run: |
           python -m build  # Build the distribution files (wheel and source dist)
-        
+
       - name: Publish to TestPyPI
         run: |
           python -m twine upload dist/* --repository-url https://test.pypi.org/legacy/ --skip-existing
         env:
-          user: ${{ secrets.PYPI_USERNAME }}
+          user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
