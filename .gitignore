@@ -3,3 +3,5 @@ __pycache__
 docs/_build
 testing.py
 dist
+.coverage
+htmlcov
