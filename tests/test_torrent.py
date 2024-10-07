@@ -1,7 +1,7 @@
 import base64
 import pytest
 from pathlib import Path
-from tests import MockResponse
+from tests import MockResponse, example_status_dict, example_multi_status_dict
 from unittest.mock import patch, mock_open, MagicMock
 from deluge_web_client import DelugeWebClientError
 
@@ -257,3 +257,260 @@ def test_upload_helper_failure(client_mock):
                 "Failed to upload file. Status code: 500, Reason: Internal Server Error"
                 in str(error_info.value)
             )
+
+
+def test_get_torrent_files(client_mock):
+    client, mock_post = client_mock
+
+    contents = {
+        "contents": {
+            "Random.Movie.2006.BluRay.720p-BHDStudio.mp4": {
+                "type": "file",
+                "index": 0,
+                "path": "Random.Movie.2006.BluRay.720p-BHDStudio.mp4",
+                "size": 3515992406,
+                "offset": 0,
+                "progress": 1.0,
+                "priority": 1,
+            }
+        },
+        "type": "dir",
+    }
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": contents,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.get_torrent_files("mock_torrent_id")
+    assert response.error is None
+    assert response.id == 1
+    assert response.result == contents
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "web.get_torrent_files"
+
+
+def test_get_torrent_status(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": example_status_dict,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.get_torrent_status("mock_torrent_id")
+    assert response.error is None
+    assert response.id == 1
+    assert response.result == example_status_dict
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.get_torrent_status"
+
+
+def test_get_torrents_status(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": example_multi_status_dict,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.get_torrents_status("mock_torrent_id")
+    assert response.error is None
+    assert response.id == 1
+    assert response.result == example_multi_status_dict
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.get_torrents_status"
+
+
+def test_pause_torrent(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": None,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.pause_torrent("mock_torrent_id")
+    assert response.error is None
+    assert response.id == 1
+    assert response.result is None
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.pause_torrent"
+
+
+def test_pause_torrents(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": None,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.pause_torrents(["mock_torrent_id1", "mock_torrent_id2"])
+    assert response.error is None
+    assert response.id == 1
+    assert response.result is None
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.pause_torrents"
+
+
+def test_remove_torrent(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": None,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.remove_torrent("mock_torrent_id")
+    assert response.error is None
+    assert response.id == 1
+    assert response.result is None
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.remove_torrent"
+
+
+def test_remove_torrents(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": None,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.remove_torrents(["mock_torrent_id1", "mock_torrent_id2"])
+    assert response.error is None
+    assert response.id == 1
+    assert response.result is None
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.remove_torrents"
+
+
+def test_resume_torrent(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": None,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.resume_torrent("mock_torrent_id")
+    assert response.error is None
+    assert response.id == 1
+    assert response.result is None
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.resume_torrent"
+
+
+def test_resume_torrents(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": None,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.resume_torrents(["mock_torrent_id1", "mock_torrent_id2"])
+    assert response.error is None
+    assert response.id == 1
+    assert response.result is None
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.resume_torrents"
+
+
+def test_set_torrent_trackers(client_mock):
+    client, mock_post = client_mock
+
+    mock_post.side_effect = (
+        MockResponse(
+            {
+                "result": None,
+                "error": None,
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client.set_torrent_trackers(
+        "mock_torrent_id", [{"tracker1": 1}, {"tracker2": 1}]
+    )
+    assert response.error is None
+    assert response.id == 1
+    assert response.result is None
+    assert mock_post.called
+    assert mock_post.call_count == 1
+    assert mock_post.call_args[1]["json"]["method"] == "core.set_torrent_trackers"

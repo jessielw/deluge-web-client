@@ -1,5 +1,7 @@
-from unittest.mock import MagicMock
+import pytest
+from unittest.mock import MagicMock, patch
 from tests import MockResponse
+from deluge_web_client import DelugeWebClientError
 
 
 def test_enter(client_mock):
@@ -219,3 +221,25 @@ def test_test_listen_port(client_mock):
     assert mock_post.called
     assert mock_post.call_count == 2
     assert mock_post.call_args[1]["json"]["method"] == "core.test_listen_port"
+
+
+def test_execute_call_with_error(client_mock):
+    client, _ = client_mock
+    payload = {"method": "core.add_torrent_file", "params": [], "id": 0}
+
+    # Simulate a response with an error in the 'error' key
+    with patch.object(
+        client.session,
+        "post",
+        return_value=MockResponse(
+            json_data={
+                "result": None,
+                "error": "Some error occurred",
+                "id": 1,
+            },
+            ok=True,
+            status_code=200,
+        ),
+    ):
+        with pytest.raises(DelugeWebClientError, match="Payload:"):
+            client.execute_call(payload)
