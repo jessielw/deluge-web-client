@@ -8,6 +8,7 @@
 [![Mypy](https://github.com/jessielw/deluge-web-client/actions/workflows/mypy.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/mypy.yml)
 [![PyPI](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml)
 [![Ruff](https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml)
+[![codecov](https://codecov.io/github/jessielw/deluge-web-client/graph/badge.svg?token=TQQQ0NOG5F)](https://codecov.io/github/jessielw/deluge-web-client)
 
 Python client implementation for [Deluge](https://deluge-torrent.org/) Web API
 
