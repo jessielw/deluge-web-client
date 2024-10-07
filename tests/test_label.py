@@ -1,5 +1,6 @@
 import pytest
 from tests import MockResponse
+from unittest.mock import MagicMock
 from deluge_web_client import DelugeWebClientError
 
 
@@ -106,3 +107,48 @@ def test_add_label_raises_error(client_mock):
 
     with pytest.raises(DelugeWebClientError, match="Error adding label:\nRandom error"):
         client.add_label("movies")
+
+
+def test_apply_label(client_mock):
+    client, _ = client_mock
+
+    # mock the add_label and set_label methods using side_effect to simulate real behavior
+    client.add_label = MagicMock(
+        side_effect=(
+            MockResponse(
+                {"result": None, "error": None, "id": 0},
+                ok=True,
+                status_code=200,
+                reason="test",
+            ),
+        )
+    )
+    client.set_label = MagicMock(
+        side_effect=(
+            MockResponse(
+                {"result": None, "error": None, "id": 1},
+                ok=True,
+                status_code=200,
+                reason="test",
+            ),
+        )
+    )
+
+    info_hash = "mocked_info_hash"
+    label = "movies"
+    timeout = 30
+
+    # call the helper method
+    response_add_label, response_set_label = client._apply_label(
+        info_hash, label, timeout
+    )
+
+    # assert that add_label and set_label were called with correct arguments
+    client.add_label.assert_called_once_with(label, timeout)
+    client.set_label.assert_called_once_with(info_hash, label, timeout)
+
+    # assert that the responses are as expected
+    assert response_add_label.json().get("result") is None
+    assert response_add_label.json().get("id") == 0
+    assert response_set_label.json().get("result") is None
+    assert response_set_label.json().get("id") == 1
