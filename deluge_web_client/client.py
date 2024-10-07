@@ -200,7 +200,7 @@ class DelugeWebClient:
 
         Args:
             uri (str): Magnet input
-            add_paused (bool): indicates whether torrent shoudl be added paused. Default to False.
+            add_paused (bool): indicates whether torrent should be added paused. Default to False.
             seed_mode (bool): whether to skip rechecking when adding. Default to recheck (False).
             auto_managed (bool): sets an added torrents to be auto-managed by user settings. Defaults to False.
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
@@ -240,7 +240,7 @@ class DelugeWebClient:
 
         Args:
             url (str): URL input
-            add_paused (bool): indicates whether torrent shoudl be added paused. Default to False.
+            add_paused (bool): indicates whether torrent should be added paused. Default to False.
             seed_mode (bool): whether to skip rechecking when adding. Default to recheck (False).
             auto_managed (bool): sets an added torrents to be auto-managed by user settings. Defaults to False.
             save_directory (str, optional): Defined path where the file should go on the host. Defaults to None.
