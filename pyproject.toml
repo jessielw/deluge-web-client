@@ -4,7 +4,16 @@ version = "1.0.3"
 description = "Deluge Web Client"
 authors = ["jlw_4049 <jessielw4049@gmail.com>"]
 maintainers = ["jlw_4049 <jessielw4049@gmail.com>"]
-keywords = ["python", "deluge", "api", "client", "torrent", "torrents", "webui", "web"]
+keywords = [
+    "python",
+    "deluge",
+    "api",
+    "client",
+    "torrent",
+    "torrents",
+    "webui",
+    "web",
+]
 license = "MIT"
 readme = "README.md"
 classifiers = [
@@ -46,6 +55,7 @@ types-pygments = "^2.18.0.20240506"
 ruff = "^0.6.9"
 pytest = "^8.3.3"
 coverage = "^7.6.1"
+pytest-cov = "^5.0.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -53,3 +63,10 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 88
+
+[tool.coverage.run]
+source = ["deluge_web_client"]
+omit = ["*/tests/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
