@@ -10,9 +10,6 @@ from deluge_web_client.response import Response
 from deluge_web_client.types import ParamArgs
 
 
-# TODO: remove all print statements
-
-
 class DelugeWebClient:
     HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
     ID = 0
@@ -274,7 +271,7 @@ class DelugeWebClient:
         with self.session.post(
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
-            self.ID += 1      
+            self.ID += 1
             if response.ok:
                 result = response.json()
                 info_hash = str(result["result"])
@@ -597,11 +594,7 @@ class DelugeWebClient:
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
             self.ID += 1
-            print("IN HERE LOWER POST")
-            print(response.status_code)
-            print(response.ok)
             if response.ok:
-                print(response.json())
                 response_json = response.json()
                 data = Response(
                     result=response_json.get("result"),
@@ -609,14 +602,11 @@ class DelugeWebClient:
                     id=response_json.get("id"),
                 )
                 if handle_error and data.error:
-                    # print('in here')
                     raise DelugeWebClientError(
                         f"Payload: {payload}, Error: {data.error}"
                     )
-                # print('returning data')
                 return data
             else:
-                # print('in here 2')
                 raise DelugeWebClientError(
                     f"Failed to execute call. Response code: {response.status_code}. Reason: {response.reason}"
                 )
