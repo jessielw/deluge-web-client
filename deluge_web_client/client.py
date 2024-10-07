@@ -274,6 +274,7 @@ class DelugeWebClient:
         with self.session.post(
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
+            self.ID += 1      
             if response.ok:
                 result = response.json()
                 info_hash = str(result["result"])
@@ -596,6 +597,7 @@ class DelugeWebClient:
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
             self.ID += 1
+            print("IN HERE LOWER POST")
             print(response.status_code)
             print(response.ok)
             if response.ok:
