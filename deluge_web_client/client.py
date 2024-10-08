@@ -447,6 +447,12 @@ class DelugeWebClient:
 
         Returns:
             Response: The response from the API call.
+
+        Example `filter_dict`:
+        >>> {"id": ["tid", "tid"]}
+        ... or
+        >>> state = str(TorrentState.SEEDING)
+        >>> {"state": state, "id": ["tid", "tid"]}
         """
         payload = {
             "method": "core.get_torrents_status",
