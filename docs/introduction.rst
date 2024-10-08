@@ -14,6 +14,18 @@ Deluge Web API Client
     :target: https://github.com/jessielw/deluge-web-client
     :alt: License
 
+.. image:: https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml/badge.svg
+   :target: https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml
+   :alt: PyPI
+
+.. image:: https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml/badge.svg
+   :target: https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml
+   :alt: Ruff
+
+.. image:: https://codecov.io/github/jessielw/deluge-web-client/graph/badge.svg?token=TQQQ0NOG5F
+   :target: https://codecov.io/github/jessielw/deluge-web-client
+   :alt: codecov
+
 Python client implementation for `Deluge <https://deluge-torrent.org>`_ Web API
 
 Features
