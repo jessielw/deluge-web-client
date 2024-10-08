@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deluge-web-client"
-version = "1.0.3"
+version = "1.0.4"
 description = "Deluge Web Client"
 authors = ["jlw_4049 <jessielw4049@gmail.com>"]
 maintainers = ["jlw_4049 <jessielw4049@gmail.com>"]
