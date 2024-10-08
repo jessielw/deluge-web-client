@@ -3,7 +3,7 @@ from enum import Enum
 
 class TorrentState(Enum):
     """
-    Deluge torrent states.
+    Deluge torrent states (case insensitive).
 
     Note: Be sure to cast to string or access the Enum.value.
     """
