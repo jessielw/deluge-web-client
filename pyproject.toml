@@ -49,10 +49,10 @@ Source = "https://github.com/jessielw/deluge-web-client"
 dev = [
     "mypy==1.19.1",
     "types-Pygments==2.19.0.20251121",
-    "ruff==0.15.5",
+    "ruff==0.15.7",
     "pytest==8.4.2",
     "coverage==7.10.7",
-    "pytest-cov==7.0.0",
+    "pytest-cov==7.1.0",
     "vermin==1.8.0",
 ]
 docs = [
