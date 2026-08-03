@@ -50,7 +50,8 @@ dev = [
     "basedpyright==1.39.8",
     "ruff==0.15.8",
     "pytest==8.4.2",
-    "coverage==7.10.7",
+    "coverage==7.10.7; python_version < '3.10'",
+    "coverage==7.15.2; python_version >= '3.10'",
     "pytest-cov==7.1.0",
     "vermin==1.8.0",
 ]
