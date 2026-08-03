@@ -12,11 +12,10 @@ updates:
       dev-dependencies:
         patterns:
           - "ruff"
-          - "mypy"
+          - "basedpyright"
           - "pytest"
           - "pytest-cov"
           - "coverage"
-          - "types-pygments"
           - "vermin"
           - "furo"
           - "sphinx"

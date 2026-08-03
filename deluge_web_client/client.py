@@ -6,8 +6,8 @@ import types
 from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
-from typing import Any, Optional, Union
-from urllib.parse import urlparse
+from typing import Any, ClassVar, cast
+from urllib.parse import urlsplit, urlunsplit
 
 import niquests
 
@@ -16,15 +16,17 @@ from deluge_web_client.schema import Response, TorrentOptions
 
 
 class DelugeWebClient:
-    HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
+    HEADERS: ClassVar[dict[str, str]] = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
 
     __slots__ = (
+        "_request_id",
+        "daemon_port",
+        "password",
         "session",
         "url",
-        "password",
-        "daemon_port",
-        "_base_url",
-        "_request_id",
     )
 
     def __init__(self, url: str, password: str, daemon_port: int = 58846) -> None:
@@ -33,7 +35,6 @@ class DelugeWebClient:
         self.password = password
         self.daemon_port = daemon_port
 
-        self._base_url = self._get_base_url(self.url)
         self._request_id = 0
 
     def __enter__(self) -> DelugeWebClient:
@@ -58,7 +59,7 @@ class DelugeWebClient:
             timeout (int): Timeout for the login and connection attempts.
 
         Returns:
-            Response: A summary response indicating the success or failure of the login and connection attempts.
+            Response: A summary of the login and connection attempts.
         """
         login_response = self._attempt_login(timeout)
         if not login_response.result:
@@ -81,17 +82,19 @@ class DelugeWebClient:
 
     def _is_connected(self, timeout: int) -> bool:
         """Check if already connected to the Web UI."""
-        return True if self.check_connected(timeout).result else False
+        return bool(self.check_connected(timeout).result)
 
     def _connect_to_first_host(self, timeout: int) -> Response:
         """Attempt to connect to the first available host."""
-        hosts = self.get_hosts()
+        hosts = self.get_hosts(timeout)
 
         if isinstance(hosts.result, list) and hosts.result:
-            host_info = hosts.result[0]
+            host_info: object = hosts.result[0]
             if isinstance(host_info, list) and host_info:
-                host_id = host_info[0]
-                connect_response = self.connect_to_host(host_id)
+                host_id = cast(object, host_info[0])
+                if not isinstance(host_id, str):
+                    return self._create_failure_response("Failed to connect to host")
+                connect_response = self.connect_to_host(host_id, timeout)
                 if connect_response.result:
                     return self.check_connected(timeout)
 
@@ -118,10 +121,9 @@ class DelugeWebClient:
         """
         Disconnects from the Web UI.
 
-        Note: This disconnects from all of your logged in instances outside of this program as well
-        that is tied to that user/password. Only use this IF needed not on each call.
+        This disconnects the Web UI session from its currently connected daemon.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.disconnect",
             "params": [],
         }
@@ -138,7 +140,7 @@ class DelugeWebClient:
         upload a single torrent to the client.
 
         Args:
-            torrent_path (PathLike[str], str, Path): Path to torrent file (example.torrent).
+            torrent_path: Path to a torrent file.
             torrent_options (TorrentOptions): Torrent options.
             timeout (int): Time to timeout.
 
@@ -146,13 +148,13 @@ class DelugeWebClient:
             Response: Response object.
         """
         torrent_path = Path(torrent_path)
-        with open(torrent_path, "rb") as tf:
+        with torrent_path.open("rb") as tf:
             params = [
                 str(torrent_path),
                 str(base64.b64encode(tf.read()), encoding="utf-8"),
                 torrent_options.to_dict(),
             ]
-            payload = {
+            payload: dict[str, Any] = {
                 "method": "core.add_torrent_file",
                 "params": params,
             }
@@ -168,17 +170,17 @@ class DelugeWebClient:
         Uploads multiple torrents.
 
         Args:
-            torrents (Iterable[Union[PathLike[str], str, Path]]): A list or other iterable of torrent file paths.
+            torrents: Iterable of torrent file paths.
             torrent_options (TorrentOptions): Torrent options.
-                You should avoid using `name` in `TorrentOptions` when uploading multiple torrents.
+                Avoid using `name` when uploading multiple torrents.
             timeout (int): Time to timeout.
 
         Returns:
-            dict[str, Response]: A dictionary of torrent name and Response objects for each torrent.
+            dict[str, Response]: Responses keyed by torrent stem.
         """
-        results = {}
-        for torrent_path in torrents:
-            torrent_path = Path(torrent_path)
+        results: dict[str, Response] = {}
+        for torrent in torrents:
+            torrent_path = Path(torrent)
             try:
                 response = self.upload_torrent(
                     torrent_path,
@@ -186,10 +188,10 @@ class DelugeWebClient:
                     timeout=timeout,
                 )
                 results[torrent_path.stem] = response
-            except Exception as e:
+            except Exception as exc:
                 raise DelugeWebClientError(
-                    f"Failed to upload {torrent_path.name}:\n{e}"
-                )
+                    f"Failed to upload {torrent_path.name}:\n{exc}"
+                ) from exc
 
         return results
 
@@ -211,7 +213,7 @@ class DelugeWebClient:
             Response: Response object.
 
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.add_torrent_magnet",
             "params": [str(uri), torrent_options.to_dict()],
         }
@@ -234,7 +236,7 @@ class DelugeWebClient:
         Returns:
             Response: Response object.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.add_torrent_url",
             "params": [str(url), torrent_options.to_dict()],
         }
@@ -263,23 +265,19 @@ class DelugeWebClient:
         # assign a unique id per request
         payload["id"] = self._get_next_id()
 
-        with self.session.post(
+        with self.session.post(  # pyright: ignore[reportUnknownMemberType]
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
-            # parse response JSON once
-            try:
-                data = response.json()
-            except Exception:
-                body_preview = response.text[:500] if response.text else "(empty)"
-                raise DelugeWebClientError(
-                    f"Invalid JSON response. Status: {response.status_code}, "
-                    f"Reason: {response.reason}, Body: {body_preview}"
-                )
+            data = self._decode_response(response)
 
             # success path: no error in response
             err = data.get("error")
             if response.ok and not err:
-                info_hash = str(data["result"])
+                info_hash = data.get("result")
+                if not isinstance(info_hash, str) or not info_hash:
+                    raise DelugeWebClientError(
+                        "Torrent was accepted but Deluge returned no torrent ID"
+                    )
                 if label:
                     self._apply_label(info_hash, label, timeout)
                 return Response(result=info_hash, message="Torrent added successfully")
@@ -314,7 +312,7 @@ class DelugeWebClient:
 
         Args:
             info_hash (str): Info has of torrent.
-            label (str): Label to apply it to (automatically set to lowercase internally).
+            label (str): Label to apply; normalized to lowercase internally.
             timeout (int): Time to timeout.
 
         Returns:
@@ -328,7 +326,7 @@ class DelugeWebClient:
         self, path: str | PathLike[str] | None = None, timeout: int = 30
     ) -> Response:
         """Gets free space."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.get_free_space",
             "params": [str(path)] if path else [],
         }
@@ -343,7 +341,7 @@ class DelugeWebClient:
         Returns the size of the file or folder `path` and `-1` if the path is
         unaccessible (non-existent or insufficient privs)
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.get_path_size",
             "params": [str(path)] if path else [],
         }
@@ -351,7 +349,7 @@ class DelugeWebClient:
 
     def get_labels(self, timeout: int = 30) -> Response:
         """Gets defined labels."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "label.get_labels",
             "params": [],
         }
@@ -359,7 +357,7 @@ class DelugeWebClient:
 
     def set_label(self, info_hash: str, label: str, timeout: int = 30) -> Response:
         """Sets the label for a specific torrent."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "label.set_torrent",
             "params": [info_hash, label.lower()],
         }
@@ -367,7 +365,7 @@ class DelugeWebClient:
 
     def add_label(self, label: str, timeout: int = 30) -> Response:
         """Adds a label to the client, ignoring labels if they already exist."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "label.add",
             "params": [label.lower()],
         }
@@ -384,7 +382,7 @@ class DelugeWebClient:
 
     def get_libtorrent_version(self, timeout: int = 30) -> Response:
         """Gets libtorrent version."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.get_libtorrent_version",
             "params": [],
         }
@@ -392,7 +390,7 @@ class DelugeWebClient:
 
     def get_listen_port(self, timeout: int = 30) -> Response:
         """Gets listen port."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.get_listen_port",
             "params": [],
         }
@@ -400,7 +398,7 @@ class DelugeWebClient:
 
     def get_plugins(self, timeout: int = 30) -> Response:
         """Gets plugins."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.get_plugins",
             "params": [],
         }
@@ -408,7 +406,7 @@ class DelugeWebClient:
 
     def get_torrent_files(self, torrent_id: str, timeout: int = 30) -> Response:
         """Gets the files for a torrent in tree format."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.get_torrent_files",
             "params": [torrent_id],
         }
@@ -436,7 +434,7 @@ class DelugeWebClient:
         if keys is None:
             keys = []
 
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.get_torrent_status",
             "params": [torrent_id, keys, diff],
         }
@@ -473,7 +471,7 @@ class DelugeWebClient:
         if keys is None:
             keys = []
 
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.get_torrents_status",
             "params": [filter_dict, keys, diff],
         }
@@ -484,7 +482,7 @@ class DelugeWebClient:
         Use the `web.connected` method to get a boolean response if the Web UI is
         connected to a deluged host.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.connected",
             "params": [],
         }
@@ -495,11 +493,14 @@ class DelugeWebClient:
         Returns hosts we're connected to currently.
 
         Example output:
-            ```python
-            Response(result=[['host_hash', '127.0.0.1', 58846, 'localclient'], ...], error=None)
-            ```
+            ::
+
+                Response(
+                    result=[["host_hash", "127.0.0.1", 58846, "localclient"]],
+                    error=None,
+                )
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.get_hosts",
             "params": [],
         }
@@ -507,7 +508,7 @@ class DelugeWebClient:
 
     def get_host_status(self, host_id: str, timeout: int = 30) -> Response:
         """Get the deluged host status `<hostID>`."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.get_host_status",
             "params": [host_id],
         }
@@ -519,7 +520,7 @@ class DelugeWebClient:
 
         Response `result` and `error` will both be `None` if successfully started.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.start_daemon",
             "params": [self.daemon_port],
         }
@@ -531,7 +532,7 @@ class DelugeWebClient:
 
         Response `result` and `error` will both be `None` if successfully stopped.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.stop_daemon",
             "params": [host_id],
         }
@@ -543,13 +544,13 @@ class DelugeWebClient:
         filter_dict: dict[str, Any] | None = None,
         timeout: int = 30,
     ) -> Response:
-        """Gathers information to update the UI (this could be useful to gather info)."""
+        """Gather information used to update the UI."""
         if keys is None:
             keys = []
         if filter_dict is None:
             filter_dict = {}
 
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.update_ui",
             "params": [keys, filter_dict],
         }
@@ -564,22 +565,23 @@ class DelugeWebClient:
         """
         Add a host to the host list.
 
-        If successful payload will return a list with a bool and the host_id. Otherwise the
-        payload will return an error message.
+        A successful payload contains a boolean and the host ID. Otherwise,
+        the payload contains an error message.
 
-            Example output:
-            ```python
-            new_host = Response(result=[True, 'f3558dd405924807a0c5e5a057f7a496'], error=None)
-            ```
+        Example output::
 
-        Example usage:
-            ```python
+            new_host = Response(
+                result=[True, "f3558dd405924807a0c5e5a057f7a496"],
+                error=None,
+            )
+
+        Example usage::
+
             new_host = client.add_host("test", "test")
             if new_host.result:
                 host_id = new_host.result[1]
-            ```
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.add_host",
             "params": ["127.0.0.1", self.daemon_port, username, password],
         }
@@ -595,7 +597,7 @@ class DelugeWebClient:
 
         If successful `result` will return `True`. Otherwise, will return `False`.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.remove_host",
             "params": [host_id],
         }
@@ -616,7 +618,7 @@ class DelugeWebClient:
 
         `result` will return `True` if successful.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.edit_host",
             "params": [host_id, "127.0.0.1", self.daemon_port, username, password],
         }
@@ -631,34 +633,36 @@ class DelugeWebClient:
         Find a host ID by its name.
 
         Example output:
-            ```python
-            host_id = client.find_host_id_by_name("localclient")
-            if host_id.result:
-                print(f"Found host ID: {host_id.result}")
-            ```
+            ::
+
+                host_id = client.find_host_id_by_name("localclient")
+                if host_id.result:
+                    print(f"Found host ID: {host_id.result}")
         """
         host_list = self.get_hosts(timeout)
         # if no hosts
         if not host_list.result:
-            return Response(result=True, error=None)
+            return Response(result=None, error=None)
 
         # let's search for the host
         if isinstance(host_list.result, list):
-            for host in host_list.result:
-                try:
-                    get_host_hash = host[0]
-                    get_host_name = host[3]
-                    if get_host_name == host_name:
-                        return Response(result=get_host_hash, error=None)
-                except IndexError:
+            for raw_host in host_list.result:
+                host_value: object = raw_host
+                if not isinstance(host_value, list):
                     continue
+                host = cast(list[object], host_value)
+                if len(host) < 4:
+                    continue
+                host_id, host_name_value = host[0], host[3]
+                if host_name_value == host_name and isinstance(host_id, str):
+                    return Response(result=host_id, error=None)
 
         # not found
         return Response(result=None, error=None)
 
     def connect_to_host(self, host_id: str, timeout: int = 30) -> Response:
         """To connect to deluged with `<hostID>`."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "web.connect",
             "params": [host_id],
         }
@@ -671,18 +675,16 @@ class DelugeWebClient:
         Returns:
             bool: If active port is opened or closed.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.test_listen_port",
             "params": [],
         }
         check_port = self.execute_call(payload, timeout=timeout)
-        if check_port.result is not None:
-            return True
-        return False
+        return check_port.result is True
 
     def pause_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Pause a specific torrent."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.pause_torrent",
             "params": [torrent_id],
         }
@@ -690,7 +692,7 @@ class DelugeWebClient:
 
     def pause_torrents(self, torrent_ids: list[str], timeout: int = 30) -> Response:
         """Pause a list of torrents."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.pause_torrents",
             "params": [torrent_ids],
         }
@@ -700,7 +702,7 @@ class DelugeWebClient:
         self, torrent_id: str, remove_data: bool = False, timeout: int = 30
     ) -> Response:
         """Removes a specific torrent."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.remove_torrent",
             "params": [torrent_id, remove_data],
         }
@@ -710,7 +712,7 @@ class DelugeWebClient:
         self, torrent_ids: list[str], remove_data: bool = False, timeout: int = 30
     ) -> Response:
         """Removes a list of torrents."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.remove_torrents",
             "params": [torrent_ids, remove_data],
         }
@@ -718,7 +720,7 @@ class DelugeWebClient:
 
     def resume_torrent(self, torrent_id: str, timeout: int = 30) -> Response:
         """Resumes a specific torrent."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.resume_torrent",
             "params": [torrent_id],
         }
@@ -726,7 +728,7 @@ class DelugeWebClient:
 
     def resume_torrents(self, torrent_ids: list[str], timeout: int = 30) -> Response:
         """Resumes a list of torrents."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.resume_torrents",
             "params": [torrent_ids],
         }
@@ -736,7 +738,7 @@ class DelugeWebClient:
         self, torrent_id: str, trackers: list[dict[str, Any]], timeout: int = 30
     ) -> Response:
         """Sets a torrents tracker list. Trackers will be ``[{'url', 'tier'}]``."""
-        payload = {
+        payload: dict[str, Any] = {
             "method": "core.set_torrent_trackers",
             "params": [torrent_id, trackers],
         }
@@ -750,8 +752,8 @@ class DelugeWebClient:
 
         Args:
             payload (dict): Payload object to be called.
-            handle_error (bool, optional): Handle errors here or allow the caller to handle
-                the error. Defaults to True.
+            handle_error (bool, optional): Handle errors here or allow the
+                caller to handle the error. Defaults to True.
             timeout (int): Time to timeout.
 
         Returns:
@@ -760,18 +762,10 @@ class DelugeWebClient:
         # assign a unique id per request
         payload["id"] = self._get_next_id()
 
-        with self.session.post(
+        with self.session.post(  # pyright: ignore[reportUnknownMemberType]
             self.url, headers=self.HEADERS, json=payload, timeout=timeout
         ) as response:
-            # parse response JSON once
-            try:
-                response_json = response.json()
-            except Exception:
-                body_preview = response.text[:500] if response.text else "(empty)"
-                raise DelugeWebClientError(
-                    f"Invalid JSON response. Status: {response.status_code}, "
-                    f"Reason: {response.reason}, Body: {body_preview}"
-                )
+            response_json = self._decode_response(response)
 
             if response.ok:
                 # normalize the error field using our parser
@@ -795,11 +789,29 @@ class DelugeWebClient:
                         f"Error: {error_msg}"
                     )
                 return data
-            else:
-                raise DelugeWebClientError(
-                    f"HTTP Error - Status: {response.status_code}, "
-                    f"Reason: {response.reason}, Method: {payload.get('method', 'unknown')}"
-                )
+            raise DelugeWebClientError(
+                f"HTTP Error - Status: {response.status_code}, "
+                f"Reason: {response.reason}, Method: {payload.get('method', 'unknown')}"
+            )
+
+    @staticmethod
+    def _decode_response(response: Any) -> dict[str, Any]:
+        """Decode and validate a JSON-RPC response object."""
+        try:
+            data = response.json()
+        except Exception as exc:
+            body_preview = response.text[:500] if response.text else "(empty)"
+            raise DelugeWebClientError(
+                f"Invalid JSON response. Status: {response.status_code}, "
+                f"Reason: {response.reason}, Body: {body_preview}"
+            ) from exc
+
+        if not isinstance(data, dict):
+            raise DelugeWebClientError(
+                "Invalid JSON-RPC response: expected an object, "
+                f"received {type(data).__name__}"
+            )
+        return cast(dict[str, Any], data)
 
     @staticmethod
     def _normalize_exception(exc_str: Any) -> str | Any:
@@ -809,25 +821,21 @@ class DelugeWebClient:
         """
         if isinstance(exc_str, str):
             return exc_str.rstrip("]").strip()
-        else:
-            return exc_str
+        return exc_str
 
     @staticmethod
     def _build_url(url: str) -> str:
-        """Automatically fixes URLs as needed to access the JSON API endpoint."""
-        if not url.endswith("/"):
-            url += "/"
+        """Normalize an absolute Deluge Web URL to its JSON endpoint."""
+        parsed = urlsplit(url)
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("url must be an absolute HTTP or HTTPS URL")
+        if parsed.fragment:
+            raise ValueError("url must not contain a fragment")
 
-        if "json" not in url:
-            url += "json/"
-
-        return url.rstrip("/")
-
-    @staticmethod
-    def _get_base_url(url: str) -> str:
-        """Returns the base URL."""
-        parsed_url = urlparse(url)
-        return f"{parsed_url.scheme}://{parsed_url.netloc}"
+        path = parsed.path.rstrip("/")
+        if not path.endswith("/json"):
+            path = f"{path}/json" if path else "/json"
+        return urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, ""))
 
     @staticmethod
     def _parse_deluge_error(err: Any) -> dict[str, str | None]:
@@ -862,11 +870,13 @@ class DelugeWebClient:
 
         # handle structured dict errors (e.g., JSONException, auth errors)
         if isinstance(err, dict):
-            parsed["raw"] = str(err)
-            msg = err.get("message") or err.get("msg") or str(err)
+            error = cast(dict[str, Any], err)
+            parsed["raw"] = str(error)
+            msg = str(error.get("message") or error.get("msg") or error)
             parsed["message"] = msg
             # check if there's a 'class' key in the dict
-            parsed["class"] = err.get("class")
+            error_class = error.get("class")
+            parsed["class"] = str(error_class) if error_class else None
 
             # if no explicit class, try to extract from the message string
             # (Twisted Failures are often in dict with stringified message)
@@ -880,7 +890,7 @@ class DelugeWebClient:
             parsed["raw"] = err_str
 
             # try to extract exception class and message from Twisted Failure format:
-            # "Failure: [Failure instance: ... <class 'deluge.error.SomeError'>: message ...]"
+            # Example: Failure with a deluge.error.SomeError class and message.
             match = re.search(r"<class '([^']+)'>:\s*(.+)", err_str, re.DOTALL)
             if match:
                 parsed["class"] = match.group(1).strip()
@@ -890,10 +900,8 @@ class DelugeWebClient:
                 parsed["message"] = err_str.strip()
 
         # extract info hash (40 hex characters) if present in the message
-        msg_str = parsed.get("message")
-        if msg_str:
-            hash_match = re.search(r"\b([0-9a-fA-F]{40})\b", msg_str)
-            if hash_match:
-                parsed["info_hash"] = hash_match.group(1)
+        hash_match = re.search(r"\b([0-9a-fA-F]{40})\b", parsed.get("message") or "")
+        if hash_match:
+            parsed["info_hash"] = hash_match.group(1)
 
         return parsed

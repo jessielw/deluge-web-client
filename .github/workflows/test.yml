@@ -1,10 +1,16 @@
 name: Test DelugeWebClient
 
 on:
+  push:
   pull_request:
-    branches:
-      - "**"
-  # workflow_dispatch:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -28,12 +34,13 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --frozen --group dev
 
       - name: Run tests
-        run: uv run pytest --cov --cov-report=xml
+        run: uv run pytest -W error --cov --cov-report=xml
 
       - name: Upload results to Codecov
+        if: matrix.python-version == '3.14'
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

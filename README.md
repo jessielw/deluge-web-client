@@ -5,7 +5,7 @@
 ![PyPI Version](https://img.shields.io/pypi/v/deluge-web-client)
 ![Python Versions](https://img.shields.io/pypi/pyversions/deluge-web-client)
 ![License](https://img.shields.io/github/license/jessielw/deluge-web-client)
-[![Mypy](https://github.com/jessielw/deluge-web-client/actions/workflows/mypy.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/mypy.yml)
+[![Quality](https://github.com/jessielw/deluge-web-client/actions/workflows/quality.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/quality.yml)
 [![PyPI](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/python_publish.yml)
 [![Ruff](https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml/badge.svg)](https://github.com/jessielw/deluge-web-client/actions/workflows/ruff.yml)
 [![codecov](https://codecov.io/github/jessielw/deluge-web-client/graph/badge.svg?token=TQQQ0NOG5F)](https://codecov.io/github/jessielw/deluge-web-client)
@@ -18,7 +18,7 @@ User Guide and API Reference available on [Read the Docs](https://deluge-web-cli
 
 ## Features
 
-- Provides access to the majority of Web API methods as well as key **core** functionalities through RPC. For more details, see the official [Web API Documentation](https://deluge.readthedocs.io/en/deluge-2.0.1/reference/webapi.html) and [RPC API Documentation](https://deluge.readthedocs.io/en/deluge-2.0.1/reference/api.html).
+- Provides access to the majority of Web API methods as well as key **core** functionalities through RPC. For more details, see the official [Web API Documentation](https://deluge.readthedocs.io/en/latest/reference/webapi.html) and [RPC API Documentation](https://deluge.readthedocs.io/en/latest/reference/api.html).
 
 - Allows you to use direct **http** connections, allowing access via **reverse proxy** or any **direct url**.
 
@@ -41,7 +41,7 @@ Before getting started, ensure that you have a running instance of Deluge with t
 ## Basic Usage
 
 ```python
-from deluge_web_client import DelugeWebClient
+from deluge_web_client import DelugeWebClient, TorrentOptions
 
 # instantiate a client
 client = DelugeWebClient(url="https://site.net/deluge", password="example_password")
@@ -64,7 +64,7 @@ upload = client.upload_torrent(
 )
 # this will return a `Response` object
 print(upload)
-# Response(result=True, error=None, id=1)
+# Response(result="<torrent-id>", error=None, message="Torrent added successfully")
 
 # retrieve and show all torrents
 all_torrents = client.get_torrents_status()
@@ -79,7 +79,7 @@ remove_torrent = client.remove_torrent("0407326f9d74629d299b525bd5f9b5dd583xxxx"
 ## Context Manager
 
 ```python
-from deluge_web_client import DelugeWebClient
+from deluge_web_client import DelugeWebClient, TorrentOptions
 
 # using a context manager automatically logs you in
 with DelugeWebClient(url="https://site.net/deluge", password="example_password") as client:
@@ -92,12 +92,14 @@ with DelugeWebClient(url="https://site.net/deluge", password="example_password")
         torrent_options=torrent_options,
     )
     print(upload)
-    # Response(result="0407326f9d74629d299b525bd5f9b5dd583xxxx", error=None, id=1)
+    # Response(result="<torrent-id>", error=None, message="Torrent added successfully")
 ```
 
 ## Notes
 
-Calling `client.disconnect()` will log the user out of the WebUI in both the client and **any connected web browser**. Be cautious if you're also logged in to the WebUI via your browser as this will terminate your session there as well.
+Calling `client.disconnect()` disconnects the Web UI session from its currently
+connected Deluge daemon. Call `client.close_session()` when you only need to
+release this client's HTTP resources.
 
 ## Access RPC Directly
 

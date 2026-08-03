@@ -31,7 +31,7 @@ Python HTTP client implementation for `Deluge <https://deluge-torrent.org>`_
 Features
 --------
 
-- Provides access to the majority of Web API methods as well as key **core** functionalities through RPC. For more details, see the official `Web API Documentation <https://deluge.readthedocs.io/en/deluge-2.0.1/reference/webapi.html>`_ and `RPC API Documentation <https://deluge.readthedocs.io/en/deluge-2.0.1/reference/api.html>`_.
+- Provides access to the majority of Web API methods as well as key **core** functionalities through RPC. For more details, see the official `Web API Documentation <https://deluge.readthedocs.io/en/latest/reference/webapi.html>`_ and `RPC API Documentation <https://deluge.readthedocs.io/en/latest/reference/api.html>`_.
 
 - Allows you to use direct **http** connections, allowing access via **reverse proxy** or any **direct url**.
 
@@ -42,7 +42,7 @@ Install via pip from `PyPI <https://pypi.org/project/deluge-web-client/>`_:
 
 .. code-block:: bash
 
-    python pip install deluge-web-client
+    python -m pip install deluge-web-client
     # or
     poetry add deluge-web-client
     # or
@@ -65,9 +65,9 @@ Basic Usage
 
     # instantiate a client
     client = DelugeWebClient(
-        url="https://site.net/deluge", 
-        password="example_password"
-        daemon_port=58846 # optional
+        url="https://site.net/deluge",
+        password="example_password",
+        daemon_port=58846,  # optional
     )
 
     # login
@@ -104,7 +104,7 @@ Context Manager
 
 .. code-block:: python
 
-    from deluge_web_client import DelugeWebClient
+    from deluge_web_client import DelugeWebClient, TorrentOptions
 
     # using a context manager automatically logs you in
     with DelugeWebClient(url="https://site.net/deluge", password="example_password") as client:
@@ -117,12 +117,14 @@ Context Manager
             torrent_options=torrent_options,
         )
         print(upload)
-        # Response(result="0407326f9d74629d299b525bd5f9b5dd583xxxx", error=None, id=1)
+        # Response(result="<torrent-id>", error=None, message="Torrent added successfully")
 
 Notes
 -----
 
-Calling `client.disconnect()` will log the user out of the WebUI in both the client and **any connected web browser**. Be cautious if you're also logged in to the WebUI via your browser as this will terminate your session there as well.
+Calling ``client.disconnect()`` disconnects the Web UI session from its currently
+connected Deluge daemon. Call ``client.close_session()`` when you only need to
+release this client's HTTP resources.
 
 Access RPC Directly
 -------------------

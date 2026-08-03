@@ -3,7 +3,14 @@ name: Ruff
 on:
   push:
   pull_request:
-  # workflow_dispatch:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ruff-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ruff_check:
@@ -22,7 +29,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --frozen --group dev
 
       - name: Run Ruff
         run: |

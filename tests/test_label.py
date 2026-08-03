@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -120,7 +121,7 @@ def test_add_label_raises_error(client_mock: tuple[DelugeWebClient, MagicMock]) 
 def test_apply_label(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
     client, _ = client_mock
 
-    # mock the add_label and set_label methods using side_effect to simulate real behavior
+    # Mock both label operations to simulate their real responses.
     with (
         patch.object(
             DelugeWebClient,
@@ -174,7 +175,11 @@ def test_upload_helper_invalid_json(
     mock_response.reason = "OK"
     mock_post.return_value.__enter__.return_value = mock_response
 
-    payload = {"method": "core.add_torrent_file", "params": [], "id": 0}
+    payload: dict[str, Any] = {
+        "method": "core.add_torrent_file",
+        "params": [],
+        "id": 0,
+    }
     with pytest.raises(DelugeWebClientError, match="Invalid JSON response"):
         client._upload_helper(payload, label=None, timeout=30)
 
@@ -189,7 +194,10 @@ def test_upload_helper_already_exists(
             json_data={
                 "result": None,
                 "error": {
-                    "message": "Torrent already in session (1234567890abcdef1234567890abcdef12345678)",
+                    "message": (
+                        "Torrent already in session "
+                        "(1234567890abcdef1234567890abcdef12345678)"
+                    ),
                     "code": 4,
                     "class": "deluge.error.AddTorrentError",
                 },
@@ -200,10 +208,40 @@ def test_upload_helper_already_exists(
         ),
     )
 
-    payload = {"method": "core.add_torrent_file", "params": [], "id": 0}
+    payload: dict[str, Any] = {
+        "method": "core.add_torrent_file",
+        "params": [],
+        "id": 0,
+    }
     response = client._upload_helper(payload, label=None, timeout=30)
     assert response.result == "1234567890abcdef1234567890abcdef12345678"
     assert response.message == "Torrent already exists"
+
+
+def test_upload_helper_duplicate_without_hash_raises(
+    client_mock: tuple[DelugeWebClient, MagicMock],
+) -> None:
+    client, mock_post = client_mock
+    mock_post.side_effect = (
+        MockResponse(
+            json_data={
+                "result": None,
+                "error": {
+                    "message": "Torrent already in session",
+                    "class": "deluge.error.AddTorrentError",
+                },
+            },
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    with pytest.raises(DelugeWebClientError, match="Torrent already in session"):
+        client._upload_helper(
+            {"method": "core.add_torrent_file", "params": []},
+            label=None,
+            timeout=30,
+        )
 
 
 def test_upload_helper_unknown_error(
@@ -223,9 +261,33 @@ def test_upload_helper_unknown_error(
         ),
     )
 
-    payload = {"method": "core.add_torrent_file", "params": [], "id": 0}
+    payload: dict[str, Any] = {
+        "method": "core.add_torrent_file",
+        "params": [],
+        "id": 0,
+    }
     with pytest.raises(DelugeWebClientError, match="Failed to add torrent"):
         client._upload_helper(payload, label=None, timeout=30)
+
+
+def test_upload_helper_rejects_missing_torrent_id(
+    client_mock: tuple[DelugeWebClient, MagicMock],
+) -> None:
+    client, mock_post = client_mock
+    mock_post.side_effect = (
+        MockResponse(
+            json_data={"result": None, "error": None, "id": 1},
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    with pytest.raises(DelugeWebClientError, match="returned no torrent ID"):
+        client._upload_helper(
+            {"method": "core.add_torrent_file", "params": []},
+            label=None,
+            timeout=30,
+        )
 
 
 def test_add_torrent_file(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
@@ -233,7 +295,7 @@ def test_add_torrent_file(client_mock: tuple[DelugeWebClient, MagicMock]) -> Non
     client, _ = client_mock
 
     with (
-        patch("builtins.open", new_callable=MagicMock) as mock_file,
+        patch("pathlib.Path.open", new_callable=MagicMock) as mock_file,
         patch.object(
             DelugeWebClient,
             "_upload_helper",

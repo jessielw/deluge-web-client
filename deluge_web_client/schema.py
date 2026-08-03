@@ -1,12 +1,14 @@
-from typing import Any, NamedTuple, Optional, Union
+from __future__ import annotations
+
+from typing import Any, NamedTuple
 
 
 class Response(NamedTuple):
     """Object that is filled on each request."""
 
-    result: Union[bool, str, list[Any], dict[str, Any], None] = None
-    error: Union[None, str, dict[str, Any]] = None
-    message: Optional[str] = None
+    result: bool | int | float | str | list[Any] | dict[str, Any] | None = None
+    error: str | dict[str, Any] | None = None
+    message: str | None = None
 
 
 class TorrentOptions(NamedTuple):
@@ -27,15 +29,15 @@ class TorrentOptions(NamedTuple):
         Absolute path on the host where the torrent's data should be stored.
 
     file_priorities:
-        Integer or list describing per-file priorities when adding a multi-file
-        torrent (implementation-dependent); leave None to use defaults.
+        Integer or per-file list describing priorities when adding a multi-file
+        torrent; leave None to use defaults.
 
     max_connections:
         Maximum number of peer connections allowed for this torrent (None to
         inherit global/default setting).
 
     max_download_speed:
-        Per-torrent download speed limit in bytes/sec. None means unlimited or
+        Per-torrent download speed limit in KiB/s. None means unlimited or
         use the global setting.
 
     max_upload_slots:
@@ -43,7 +45,7 @@ class TorrentOptions(NamedTuple):
         defaults).
 
     max_upload_speed:
-        Per-torrent upload speed limit in bytes/sec. None means unlimited or
+        Per-torrent upload speed limit in KiB/s. None means unlimited or
         use the global setting.
 
     move_completed:
@@ -99,29 +101,29 @@ class TorrentOptions(NamedTuple):
         Label or category to assign to the torrent for organizational purposes.
     """
 
-    add_paused: Optional[bool] = None
-    auto_managed: Optional[bool] = None
-    download_location: Optional[str] = None
-    file_priorities: Optional[int] = None
-    max_connections: Optional[int] = None
-    max_download_speed: Optional[int] = None
-    max_upload_slots: Optional[int] = None
-    max_upload_speed: Optional[int] = None
-    move_completed: Optional[bool] = None
-    move_completed_path: Optional[str] = None
-    name: Optional[str] = None
-    owner: Optional[str] = None
-    prioritize_first_last_pieces: Optional[bool] = None
-    remove_at_ratio: Optional[bool] = None
-    seed_mode: Optional[bool] = None
-    sequential_download: Optional[bool] = None
-    shared: Optional[bool] = None
-    stop_at_ratio: Optional[bool] = None
-    stop_ratio: Optional[float] = None
-    super_seeding: Optional[bool] = None
-    label: Optional[str] = None
+    add_paused: bool | None = None
+    auto_managed: bool | None = None
+    download_location: str | None = None
+    file_priorities: int | list[int] | None = None
+    max_connections: int | None = None
+    max_download_speed: float | None = None
+    max_upload_slots: int | None = None
+    max_upload_speed: float | None = None
+    move_completed: bool | None = None
+    move_completed_path: str | None = None
+    name: str | None = None
+    owner: str | None = None
+    prioritize_first_last_pieces: bool | None = None
+    remove_at_ratio: bool | None = None
+    seed_mode: bool | None = None
+    sequential_download: bool | None = None
+    shared: bool | None = None
+    stop_at_ratio: bool | None = None
+    stop_ratio: float | None = None
+    super_seeding: bool | None = None
+    label: str | None = None
 
-    def to_dict(self) -> dict[str, Union[bool, int, float, str]]:
+    def to_dict(self) -> dict[str, bool | int | float | str | list[int]]:
         """Convert the TorrentOptions to a dictionary, excluding None values."""
         return {
             field: getattr(self, field)

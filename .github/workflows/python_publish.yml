@@ -15,6 +15,7 @@ jobs:
       url: https://pypi.org/p/deluge-web-client/
 
     permissions:
+      contents: read
       id-token: write
 
     steps:
@@ -28,6 +29,9 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+
+      - name: Validate lockfile
+        run: uv lock --check
 
       - name: Build the package
         run: uv build

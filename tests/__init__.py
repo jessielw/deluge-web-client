@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import types
-from typing import Any, Optional
+from typing import Any
 
 
 class MockResponse:
@@ -9,17 +9,18 @@ class MockResponse:
 
     def __init__(
         self,
-        json_data: dict[str, Any] | None = {},
+        json_data: object = None,
         ok: bool | None = None,
         status_code: int | None = None,
         reason: str | None = None,
-    ):
-        self.json_data = json_data
+    ) -> None:
+        self.json_data: object = {} if json_data is None else json_data
         self.ok = ok
         self.status_code = status_code
         self.reason = reason
+        self.text = ""
 
-    def json(self) -> dict[str, Any] | None:
+    def json(self) -> object:
         return self.json_data
 
     def __enter__(self) -> MockResponse:
@@ -34,7 +35,7 @@ class MockResponse:
         pass
 
 
-example_status_dict = {
+example_status_dict: dict[str, Any] = {
     "active_time": 59828,
     "seeding_time": 59800,
     "finished_time": 59800,
@@ -151,7 +152,7 @@ example_status_dict = {
     "label": "media",
 }
 
-example_multi_status_dict = {
+example_multi_status_dict: dict[str, Any] = {
     "info_hash1": example_status_dict,
     "info_hash2": example_status_dict,
 }
