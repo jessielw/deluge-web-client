@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -69,16 +70,16 @@ def test_successful_login_and_host_connection(
         # Check connection should be called twice
         mock_check_connected.assert_called()
         # Host retrieval should be called once
-        mock_get_hosts.assert_called_once()
+        mock_get_hosts.assert_called_once_with(30)
         # Connect to the correct host
-        mock_connect_to_host.assert_called_once_with("host_id_1")
+        mock_connect_to_host.assert_called_once_with("host_id_1", 30)
 
-        # Verify the flow of calls (login, check if connected, get hosts, connect to host)
+        # Verify login, connection check, host lookup, and host connection flow.
         assert mock_check_connected.call_count == 2
 
 
 def test_login_failure(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
-    client, mock_post = client_mock
+    client, _ = client_mock
 
     # Mock the login attempt to return a failure response
     with patch.object(
@@ -98,7 +99,7 @@ def test_login_failure(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
 
 
 def test_already_connected(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
-    client, mock_post = client_mock
+    client, _ = client_mock
 
     # Mock login success and already connected response
     with (
@@ -130,7 +131,7 @@ def test_already_connected(client_mock: tuple[DelugeWebClient, MagicMock]) -> No
 def test_host_connection_failure(
     client_mock: tuple[DelugeWebClient, MagicMock],
 ) -> None:
-    client, mock_post = client_mock
+    client, _ = client_mock
 
     # Mock the login success
     with (
@@ -164,11 +165,37 @@ def test_host_connection_failure(
 
         # Verify method calls
         mock_attempt_login.assert_called_once()  # Login should be called once
-        mock_check_connected.assert_called_once()  # Check connection should be called once
-        mock_get_hosts.assert_called_once()  # Get hosts should be called once
-        mock_connect_to_host.assert_called_once_with(
-            "host_id_1"
-        )  # Connect to the first host
+        mock_check_connected.assert_called_once()
+        mock_get_hosts.assert_called_once_with(30)
+        mock_connect_to_host.assert_called_once_with("host_id_1", 30)
+
+
+@pytest.mark.parametrize("hosts", ["invalid", [[]], [[123]]])
+def test_login_rejects_malformed_host_entries(
+    client_mock: tuple[DelugeWebClient, MagicMock],
+    hosts: object,
+) -> None:
+    client, _ = client_mock
+    with (
+        patch.object(
+            DelugeWebClient,
+            "_attempt_login",
+            return_value=Response(result=True),
+        ),
+        patch.object(
+            DelugeWebClient,
+            "check_connected",
+            return_value=Response(result=False),
+        ),
+        patch.object(
+            DelugeWebClient,
+            "get_hosts",
+            return_value=Response(result=cast(Any, hosts)),
+        ),
+    ):
+        response = client.login(timeout=12)
+
+    assert response == Response(result=False, error="Failed to connect to host")
 
 
 def test_close_session(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:

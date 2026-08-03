@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,10 +13,9 @@ from tests import MockResponse
 def test_enter(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
     client, _ = client_mock
 
-    with patch.object(DelugeWebClient, "login") as mock_login:
-        with client as c:
-            mock_login.assert_called_once()
-            assert c is client
+    with patch.object(DelugeWebClient, "login") as mock_login, client as c:
+        mock_login.assert_called_once()
+        assert c is client
 
 
 def test_exit(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
@@ -225,31 +225,85 @@ def test_test_listen_port(client_mock: tuple[DelugeWebClient, MagicMock]) -> Non
     assert mock_post.call_count == 2
     assert mock_post.call_args[1]["json"]["method"] == "core.test_listen_port"
 
+    mock_post.side_effect = (
+        MockResponse(
+            {"result": False, "error": None, "id": 2},
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    assert client.test_listen_port() is False
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("http://localhost:8112", "http://localhost:8112/json"),
+        ("https://example.test/deluge/", "https://example.test/deluge/json"),
+        ("https://example.test/json/", "https://example.test/json"),
+        (
+            "https://json.example.test/proxy?token=value",
+            "https://json.example.test/proxy/json?token=value",
+        ),
+    ],
+)
+def test_build_url(source: str, expected: str) -> None:
+    assert DelugeWebClient._build_url(source) == expected
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["localhost:8112", "ftp://example.test", "https://example.test/#fragment"],
+)
+def test_build_url_rejects_invalid_urls(url: str) -> None:
+    with pytest.raises(ValueError):
+        DelugeWebClient._build_url(url)
+
+
+def test_execute_call_rejects_non_object_json(
+    client_mock: tuple[DelugeWebClient, MagicMock],
+) -> None:
+    client, mock_post = client_mock
+    mock_post.side_effect = (MockResponse([], ok=True, status_code=200),)
+
+    with pytest.raises(
+        DelugeWebClientError,
+        match="Invalid JSON-RPC response: expected an object",
+    ):
+        client.execute_call({"method": "web.connected", "params": []})
+
 
 def test_execute_call_with_error(
     client_mock: tuple[DelugeWebClient, MagicMock],
 ) -> None:
     client, _ = client_mock
-    payload = {"method": "core.add_torrent_file", "params": [], "id": 0}
+    payload: dict[str, Any] = {
+        "method": "core.add_torrent_file",
+        "params": [],
+        "id": 0,
+    }
 
     # Simulate a response with an error in the 'error' key
-    with patch.object(
-        client.session,
-        "post",
-        return_value=MockResponse(
-            json_data={
-                "result": None,
-                "error": "Some error occurred",
-                "id": 1,
-            },
-            ok=True,
-            status_code=200,
+    with (
+        patch.object(
+            client.session,
+            "post",
+            return_value=MockResponse(
+                json_data={
+                    "result": None,
+                    "error": "Some error occurred",
+                    "id": 1,
+                },
+                ok=True,
+                status_code=200,
+            ),
+        ),
+        pytest.raises(
+            DelugeWebClientError, match=r"RPC Error - Method: core\.add_torrent_file"
         ),
     ):
-        with pytest.raises(
-            DelugeWebClientError, match="RPC Error - Method: core.add_torrent_file"
-        ):
-            client.execute_call(payload)
+        client.execute_call(payload)
 
 
 def test_parse_deluge_error_coverage(
@@ -261,7 +315,7 @@ def test_parse_deluge_error_coverage(
     parsed = client._parse_deluge_error(None)
     assert parsed["message"] is None
 
-    # Test 2: Dict error without 'class' key but with message matching regex (Lines 886-887)
+    # Dict error without a class key but with a matching message.
     err_dict = {"message": "<class 'deluge.error.TestError'>: Test Message"}
     parsed = client._parse_deluge_error(err_dict)
     assert parsed["class"] == "deluge.error.TestError"
@@ -285,6 +339,10 @@ def test_execute_call_invalid_json(
     mock_response.reason = "OK"
     mock_post.return_value.__enter__.return_value = mock_response
 
-    payload = {"method": "core.add_torrent_file", "params": [], "id": 0}
+    payload: dict[str, Any] = {
+        "method": "core.add_torrent_file",
+        "params": [],
+        "id": 0,
+    }
     with pytest.raises(DelugeWebClientError, match="Invalid JSON response"):
         client.execute_call(payload)

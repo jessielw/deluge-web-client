@@ -6,16 +6,8 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import os
-import sys
-
-sys.path.insert(0, os.path.abspath("../"))
-sys.path.insert(0, os.path.abspath("_themes"))
-
-import deluge_web_client
-
 project = "Deluge Web Client"
-copyright = "2025, jessielw"
+copyright = "2025-2026, jessielw"
 author = "jessielw"
 
 # -- General configuration ---------------------------------------------------
@@ -41,16 +33,10 @@ source_suffix = ".rst"
 
 master_doc = "index"
 
-templates_path = ["_templates"]
-
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-
-# The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "flask_theme_support.FlaskyStyle"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "furo"
-html_static_path = ["_static"]

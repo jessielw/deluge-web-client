@@ -1,2 +1,2 @@
 class DelugeWebClientError(Exception):
-    """Handles all expected exceptions"""
+    """Represent an error detected while using the Deluge Web API."""

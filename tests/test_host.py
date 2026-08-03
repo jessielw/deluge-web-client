@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from deluge_web_client import Response
 from deluge_web_client.client import DelugeWebClient
@@ -41,7 +44,7 @@ def test_start_daemon_custom_port(
         ),
     )
 
-    response = client.start_daemon()
+    client.start_daemon()
     assert mock_post.call_args[1]["json"]["params"] == [12345]
 
 
@@ -249,7 +252,7 @@ def test_find_host_id_by_name_no_hosts(
         DelugeWebClient, "get_hosts", return_value=Response(result=[], error=None)
     ):
         response = client.find_host_id_by_name("anyhost")
-        assert response.result is True  # Returns True when no hosts exist
+        assert response.result is None
         assert response.error is None
 
 
@@ -312,7 +315,7 @@ def test_find_host_id_by_name_malformed(
 ) -> None:
     client, _ = client_mock
 
-    # Mock get_hosts to return a malformed list (missing elements) to trigger IndexError (lines 769-771)
+    # Return a malformed host entry with no display name.
     with patch.object(
         DelugeWebClient,
         "get_hosts",
@@ -323,3 +326,26 @@ def test_find_host_id_by_name_malformed(
     ):
         response = client.find_host_id_by_name("localclient")
         assert response.result is None
+
+
+@pytest.mark.parametrize(
+    "hosts",
+    [
+        "invalid",
+        ["invalid"],
+        [[123, "127.0.0.1", 58846, "localclient"]],
+    ],
+)
+def test_find_host_id_by_name_rejects_invalid_results(
+    client_mock: tuple[DelugeWebClient, MagicMock],
+    hosts: object,
+) -> None:
+    client, _ = client_mock
+    with patch.object(
+        DelugeWebClient,
+        "get_hosts",
+        return_value=Response(result=cast(Any, hosts)),
+    ):
+        response = client.find_host_id_by_name("localclient")
+
+    assert response.result is None

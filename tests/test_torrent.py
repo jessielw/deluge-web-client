@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import base64
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
-from niquests import Response
 
 from deluge_web_client import DelugeWebClientError, TorrentOptions
 from deluge_web_client.client import DelugeWebClient
@@ -23,7 +21,7 @@ def test_upload_torrent(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
 
     # Mock the open function to simulate reading a torrent file
     with (
-        patch("builtins.open", mock_open(read_data=mocked_file_content)),
+        patch("pathlib.Path.open", mock_open(read_data=mocked_file_content)),
         patch.object(
             DelugeWebClient,
             "_upload_helper",
@@ -109,7 +107,7 @@ def test_upload_torrents_failure(
 
         # Expecting a DelugeWebClientError to be raised
         with pytest.raises(
-            DelugeWebClientError, match="Failed to upload torrent2.torrent:"
+            DelugeWebClientError, match=r"Failed to upload torrent2\.torrent:"
         ):
             client.upload_torrents(torrents, options)
 
@@ -147,14 +145,16 @@ def test_add_torrent_magnet_failure(
     magnet_uri = "magnet:?xt=urn:btih:..."
 
     # Mock the _upload_helper to raise an exception
-    with patch.object(
-        DelugeWebClient,
-        "_upload_helper",
-        side_effect=DelugeWebClientError("Upload failed"),
+    with (
+        patch.object(
+            DelugeWebClient,
+            "_upload_helper",
+            side_effect=DelugeWebClientError("Upload failed"),
+        ),
+        pytest.raises(DelugeWebClientError, match=r".+"),
     ):
-        with pytest.raises(DelugeWebClientError, match=r".+"):
-            options = TorrentOptions()
-            client.add_torrent_magnet(magnet_uri, options)
+        options = TorrentOptions()
+        client.add_torrent_magnet(magnet_uri, options)
 
 
 def test_add_torrent_url(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
@@ -187,14 +187,16 @@ def test_add_torrent_url_failure(
     torrent_url = "http://example.com/torrent"
 
     # Mock the _upload_helper to raise an exception
-    with patch.object(
-        DelugeWebClient,
-        "_upload_helper",
-        side_effect=DelugeWebClientError("Upload failed"),
+    with (
+        patch.object(
+            DelugeWebClient,
+            "_upload_helper",
+            side_effect=DelugeWebClientError("Upload failed"),
+        ),
+        pytest.raises(DelugeWebClientError, match=r".+"),
     ):
-        with pytest.raises(DelugeWebClientError, match=r".+"):
-            options = TorrentOptions()
-            client.add_torrent_url(torrent_url, options)
+        options = TorrentOptions()
+        client.add_torrent_url(torrent_url, options)
 
 
 def test_upload_helper_success(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
@@ -216,24 +218,47 @@ def test_upload_helper_success(client_mock: tuple[DelugeWebClient, MagicMock]) -
     # client.ID counter removed; ensure we get a valid response and no exceptions
 
 
+def test_upload_helper_success_without_label(
+    client_mock: tuple[DelugeWebClient, MagicMock],
+) -> None:
+    client, mock_post = client_mock
+    mock_post.side_effect = (
+        MockResponse(
+            json_data={"result": "info_hash", "error": None},
+            ok=True,
+            status_code=200,
+        ),
+    )
+
+    response = client._upload_helper(
+        {"method": "core.add_torrent_file", "params": []},
+        label=None,
+        timeout=30,
+    )
+
+    assert response.result == "info_hash"
+
+
 def test_upload_helper_failure(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
     client, _ = client_mock
     payload: dict[str, Any] = {"method": "core.add_torrent_file", "params": [], "id": 0}
     label = "Test Label"
 
-    with patch.object(
-        client.session,
-        "post",
-        return_value=MockResponse(
-            json_data={"result": "info_hash"}, ok=False, status_code=500
+    with (
+        patch.object(
+            client.session,
+            "post",
+            return_value=MockResponse(
+                json_data={"result": "info_hash"}, ok=False, status_code=500
+            ),
         ),
+        pytest.raises(DelugeWebClientError) as error_info,
     ):
-        with pytest.raises(DelugeWebClientError) as error_info:
-            client._upload_helper(payload, label, timeout=30)
-            assert (
-                "Failed to upload file. Status code: 500, Reason: Internal Server Error"
-                in str(error_info.value)
-            )
+        client._upload_helper(payload, label, timeout=30)
+        assert (
+            "Failed to upload file. Status code: 500, Reason: Internal Server Error"
+            in str(error_info.value)
+        )
 
 
 def test_get_torrent_files(client_mock: tuple[DelugeWebClient, MagicMock]) -> None:
@@ -312,7 +337,7 @@ def test_get_torrents_status(client_mock: tuple[DelugeWebClient, MagicMock]) -> 
         ),
     )
 
-    response = client.get_torrents_status("mock_torrent_id")  # type: ignore[arg-type]
+    response = client.get_torrents_status(cast(Any, "mock_torrent_id"))
     assert response.error is None
     assert response.result == example_multi_status_dict
     assert mock_post.called
@@ -545,6 +570,29 @@ def test_get_torrents_status_defaults_none(
     assert mock_post.call_args[1]["json"]["method"] == "core.get_torrents_status"
     # Verify defaults were correctly substituted: filter_dict={}, keys=[], diff=False
     assert mock_post.call_args[1]["json"]["params"] == [{}, [], False]
+
+
+def test_status_methods_with_explicit_filters(
+    client_mock: tuple[DelugeWebClient, MagicMock],
+) -> None:
+    client, mock_post = client_mock
+    mock_post.side_effect = (
+        MockResponse({"result": {}, "error": None}, ok=True, status_code=200),
+        MockResponse({"result": {}, "error": None}, ok=True, status_code=200),
+    )
+
+    client.get_torrent_status("torrent", keys=["name"])
+    client.get_torrents_status(
+        filter_dict={"state": "Seeding"}, keys=["name"], diff=True
+    )
+
+    first_call, second_call = mock_post.call_args_list
+    assert first_call.kwargs["json"]["params"] == ["torrent", ["name"], False]
+    assert second_call.kwargs["json"]["params"] == [
+        {"state": "Seeding"},
+        ["name"],
+        True,
+    ]
 
 
 def test_get_torrent_status_defaults(

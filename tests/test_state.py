@@ -25,7 +25,7 @@ def test_torrent_state_str_method() -> None:
 
 
 def test_torrent_state_case_insensitive_lookup() -> None:
-    """Test that the _missing_ method returns the correct enum member when case differs."""
+    """Test case-insensitive enum lookup."""
     assert TorrentState("allocating") == TorrentState.ALLOCATING
     assert TorrentState("CHECKING") == TorrentState.CHECKING
     assert TorrentState("downloading") == TorrentState.DOWNLOADING
