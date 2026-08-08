@@ -3,7 +3,8 @@ from __future__ import annotations
 import base64
 import re
 import types
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager
 from os import PathLike
 from pathlib import Path
 from typing import Any, ClassVar, cast
@@ -11,7 +12,14 @@ from urllib.parse import urlsplit, urlunsplit
 
 import niquests
 
-from deluge_web_client.exceptions import DelugeWebClientError
+from deluge_web_client.exceptions import (
+    DelugeWebClientConnectionError,
+    DelugeWebClientDecodeError,
+    DelugeWebClientError,
+    DelugeWebClientHTTPError,
+    DelugeWebClientRPCError,
+    DelugeWebClientTimeoutError,
+)
 from deluge_web_client.schema import Response, TorrentOptions
 
 
@@ -30,6 +38,18 @@ class DelugeWebClient:
     )
 
     def __init__(self, url: str, password: str, daemon_port: int = 58846) -> None:
+        """
+        Args:
+            url (str): Absolute HTTP(S) URL of the Deluge Web UI.
+            password (str): Web UI password.
+            daemon_port (int): Port the Deluge daemon listens on.
+
+        Raises:
+            ValueError: If `url` is not an absolute HTTP/HTTPS URL or contains
+                a fragment. This is intentionally **not** wrapped in
+                `DelugeWebClientError`; it signals a bad argument rather than a
+                Deluge failure.
+        """
         self.session = niquests.Session()
         self.url = self._build_url(url)
         self.password = password
@@ -60,6 +80,12 @@ class DelugeWebClient:
 
         Returns:
             Response: A summary of the login and connection attempts.
+
+        Raises:
+            DelugeWebClientConnectionError: If there is no Deluge Web UI
+                reachable at the configured URL.
+            DelugeWebClientTimeoutError: If the request times out.
+            DelugeWebClientError: On any other Deluge or HTTP failure.
         """
         login_response = self._attempt_login(timeout)
         if not login_response.result:
@@ -117,6 +143,53 @@ class DelugeWebClient:
         self._request_id += 1
         return self._request_id
 
+    @contextmanager
+    def _post(
+        self, payload: dict[str, Any], timeout: int
+    ) -> Generator[Any, None, None]:
+        """
+        Send a JSON-RPC payload and yield the raw response.
+
+        Assigns the request ID and translates every `niquests` transport
+        failure into a `DelugeWebClientError` subclass, so callers never see
+        the underlying HTTP library's exceptions.
+
+        Args:
+            payload (dict): Payload object to be sent; mutated to add an "id".
+            timeout (int): Time to timeout.
+
+        Yields:
+            The response object, closed when the context manager exits.
+            The response is entered as a context manager itself, matching
+            what `niquests` returns from `Session.post`.
+
+        Raises:
+            DelugeWebClientTimeoutError: On connect or read timeouts.
+            DelugeWebClientConnectionError: On any other transport failure
+                (unreachable host, DNS, TLS, proxy).
+        """
+        # assign a unique id per request
+        payload["id"] = self._get_next_id()
+
+        # only the call itself is guarded, never the yield, otherwise errors
+        # raised by the caller's `with` body would be mistaken for transport
+        # failures when they propagate back through this generator
+        try:
+            response = self.session.post(  # pyright: ignore[reportUnknownMemberType]
+                self.url, headers=self.HEADERS, json=payload, timeout=timeout
+            )
+        except niquests.exceptions.Timeout as exc:
+            raise DelugeWebClientTimeoutError(
+                f"Request to {self.url} timed out after {timeout}s: {exc}"
+            ) from exc
+        except niquests.exceptions.RequestException as exc:
+            raise DelugeWebClientConnectionError(
+                f"Failed to reach Deluge Web UI at {self.url}: {exc}"
+            ) from exc
+
+        with response as entered:
+            yield entered
+
     def disconnect(self, timeout: int = 30) -> Response:
         """
         Disconnects from the Web UI.
@@ -146,6 +219,12 @@ class DelugeWebClient:
 
         Returns:
             Response: Response object.
+
+        Raises:
+            DelugeWebClientError: On upload failures (except duplicate
+                torrents, which are returned as a successful result).
+            OSError: If `torrent_path` cannot be read. This is intentionally
+                **not** wrapped in `DelugeWebClientError`.
         """
         torrent_path = Path(torrent_path)
         with torrent_path.open("rb") as tf:
@@ -177,6 +256,12 @@ class DelugeWebClient:
 
         Returns:
             dict[str, Response]: Responses keyed by torrent stem.
+
+        Raises:
+            DelugeWebClientError: On the first failed upload, aborting the
+                batch. The specific subclass of the underlying failure is
+                preserved.
+            OSError: If a torrent file cannot be read.
         """
         results: dict[str, Response] = {}
         for torrent in torrents:
@@ -188,6 +273,12 @@ class DelugeWebClient:
                     timeout=timeout,
                 )
                 results[torrent_path.stem] = response
+            except DelugeWebClientError as exc:
+                # keep the specific subclass so callers can still tell a dead
+                # host from an RPC error; the extra attributes are dropped
+                raise type(exc)(
+                    f"Failed to upload {torrent_path.name}:\n{exc}"
+                ) from exc
             except Exception as exc:
                 raise DelugeWebClientError(
                     f"Failed to upload {torrent_path.name}:\n{exc}"
@@ -212,6 +303,9 @@ class DelugeWebClient:
         Returns:
             Response: Response object.
 
+        Raises:
+            DelugeWebClientError: On failures (except duplicate torrents,
+                which are returned as a successful result).
         """
         payload: dict[str, Any] = {
             "method": "core.add_torrent_magnet",
@@ -235,6 +329,10 @@ class DelugeWebClient:
 
         Returns:
             Response: Response object.
+
+        Raises:
+            DelugeWebClientError: On failures (except duplicate torrents,
+                which are returned as a successful result).
         """
         payload: dict[str, Any] = {
             "method": "core.add_torrent_url",
@@ -262,12 +360,7 @@ class DelugeWebClient:
         Raises:
             DelugeWebClientError: On upload failures (except duplicate torrents)
         """
-        # assign a unique id per request
-        payload["id"] = self._get_next_id()
-
-        with self.session.post(  # pyright: ignore[reportUnknownMemberType]
-            self.url, headers=self.HEADERS, json=payload, timeout=timeout
-        ) as response:
+        with self._post(payload, timeout) as response:
             data = self._decode_response(response)
 
             # success path: no error in response
@@ -298,9 +391,21 @@ class DelugeWebClient:
 
             # all other errors: raise with parsed information
             error_msg = parsed.get("message") or "Unknown error"
-            raise DelugeWebClientError(
+            message = (
                 f"Failed to add torrent. Status: {response.status_code}, "
                 f"Reason: {response.reason}, Error: {error_msg}"
+            )
+            if not response.ok:
+                raise DelugeWebClientHTTPError(
+                    message,
+                    status_code=response.status_code,
+                    reason=response.reason,
+                )
+            raise DelugeWebClientRPCError(
+                message,
+                method=payload.get("method", "unknown"),
+                error_class=parsed.get("class"),
+                info_hash=parsed.get("info_hash"),
             )
 
     def _apply_label(
@@ -758,13 +863,16 @@ class DelugeWebClient:
 
         Returns:
             Response: Response object for each call.
-        """
-        # assign a unique id per request
-        payload["id"] = self._get_next_id()
 
-        with self.session.post(  # pyright: ignore[reportUnknownMemberType]
-            self.url, headers=self.HEADERS, json=payload, timeout=timeout
-        ) as response:
+        Raises:
+            DelugeWebClientTimeoutError: If the request times out.
+            DelugeWebClientConnectionError: If the Web UI cannot be reached.
+            DelugeWebClientDecodeError: If the response is not a JSON object.
+            DelugeWebClientHTTPError: If the Web UI returns a non-2xx status.
+            DelugeWebClientRPCError: If Deluge reports a JSON-RPC error and
+                `handle_error` is True.
+        """
+        with self._post(payload, timeout) as response:
             response_json = self._decode_response(response)
 
             if response.ok:
@@ -784,14 +892,22 @@ class DelugeWebClient:
                     error_msg = (
                         parsed_error.get("message") if parsed_error else str(data.error)
                     )
-                    raise DelugeWebClientError(
+                    raise DelugeWebClientRPCError(
                         f"RPC Error - Method: {payload.get('method', 'unknown')}, "
-                        f"Error: {error_msg}"
+                        f"Error: {error_msg}",
+                        method=payload.get("method", "unknown"),
+                        error_class=parsed_error.get("class") if parsed_error else None,
+                        info_hash=(
+                            parsed_error.get("info_hash") if parsed_error else None
+                        ),
                     )
                 return data
-            raise DelugeWebClientError(
+            method = payload.get("method", "unknown")
+            raise DelugeWebClientHTTPError(
                 f"HTTP Error - Status: {response.status_code}, "
-                f"Reason: {response.reason}, Method: {payload.get('method', 'unknown')}"
+                f"Reason: {response.reason}, Method: {method}",
+                status_code=response.status_code,
+                reason=response.reason,
             )
 
     @staticmethod
@@ -801,13 +917,13 @@ class DelugeWebClient:
             data = response.json()
         except Exception as exc:
             body_preview = response.text[:500] if response.text else "(empty)"
-            raise DelugeWebClientError(
+            raise DelugeWebClientDecodeError(
                 f"Invalid JSON response. Status: {response.status_code}, "
                 f"Reason: {response.reason}, Body: {body_preview}"
             ) from exc
 
         if not isinstance(data, dict):
-            raise DelugeWebClientError(
+            raise DelugeWebClientDecodeError(
                 "Invalid JSON-RPC response: expected an object, "
                 f"received {type(data).__name__}"
             )

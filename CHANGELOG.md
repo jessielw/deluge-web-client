@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file starting wit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added `DelugeWebClientConnectionError`, `DelugeWebClientTimeoutError`, `DelugeWebClientHTTPError`, `DelugeWebClientRPCError`, and `DelugeWebClientDecodeError`, all subclassing `DelugeWebClientError`. Existing `except DelugeWebClientError` code is unaffected.
+- Documented error handling in the README and user guide, including the two exceptions that are deliberately not wrapped (`ValueError` for a malformed URL, `OSError` for an unreadable torrent file).
+
+### Fixed
+
+- Transport failures from `niquests` (unreachable host, DNS, TLS, proxy, timeouts) no longer escape as `niquests.exceptions.*`. They are now raised as `DelugeWebClientConnectionError` or `DelugeWebClientTimeoutError`, with the original exception preserved as `__cause__`. This previously affected every call, most visibly `login()` against a URL with no Deluge instance behind it.
+
 ## [2.1.0] - 2026-08-03
 
 ### Changed

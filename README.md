@@ -95,6 +95,52 @@ with DelugeWebClient(url="https://site.net/deluge", password="example_password")
     # Response(result="<torrent-id>", error=None, message="Torrent added successfully")
 ```
 
+## Error Handling
+
+Every Deluge or network failure raises `DelugeWebClientError` or one of its
+subclasses, so catching the base class is always enough:
+
+```
+DelugeWebClientError
+├── DelugeWebClientConnectionError   # unreachable host, DNS, TLS, proxy
+├── DelugeWebClientTimeoutError      # connect / read timeout
+├── DelugeWebClientHTTPError         # non-2xx (.status_code, .reason)
+├── DelugeWebClientRPCError          # Deluge reported an error (.method, .error_class, .info_hash)
+└── DelugeWebClientDecodeError       # response body was not a JSON object
+```
+
+```python
+from deluge_web_client import (
+    DelugeWebClient,
+    DelugeWebClientConnectionError,
+    DelugeWebClientError,
+    DelugeWebClientRPCError,
+)
+
+client = DelugeWebClient(url="https://site.net/deluge", password="example_password")
+
+try:
+    client.login()
+except DelugeWebClientConnectionError:
+    print("no Deluge Web UI at that URL")
+except DelugeWebClientRPCError as error:
+    print(f"Deluge rejected the call: {error.method}")
+except DelugeWebClientError as error:
+    # catches everything above, including anything added in the future
+    print(f"something went wrong: {error}")
+```
+
+The underlying `niquests` exception is preserved as `__cause__` on connection
+and timeout errors if you need the transport level detail.
+
+Two exceptions are deliberately **not** wrapped, because they signal a bad
+argument rather than a Deluge failure:
+
+- `ValueError` — the `url` passed to `DelugeWebClient` is not an absolute
+  HTTP/HTTPS URL, or contains a fragment.
+- `OSError` / `FileNotFoundError` — a torrent file passed to `upload_torrent`
+  cannot be read.
+
 ## Notes
 
 Calling `client.disconnect()` disconnects the Web UI session from its currently
