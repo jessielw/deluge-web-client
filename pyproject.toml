@@ -1,6 +1,6 @@
 [project]
 name = "deluge-web-client"
-version = "2.1.0"
+version = "2.1.1"
 description = "Deluge Web Client"
 readme = "README.md"
 requires-python = ">=3.9,<3.15"
