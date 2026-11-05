@@ -326,7 +326,7 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "niquests", specifier = ">=3.20.1" }]
+requires-dist = [{ name = "niquests", specifier = ">=3.21.2" }]
 
 [package.metadata.requires-dev]
 dev = [
