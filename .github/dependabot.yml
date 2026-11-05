@@ -1,29 +1,23 @@
 version: 2
 updates:
-  # Maintain dependencies for the package ecosystem (pip/uv)
-  - package-ecosystem: "pip"
+  # 1. Python Dependencies (uv / pyproject.toml + uv.lock)
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
-    # Create pull requests for security updates and version upgrades
-    open-pull-requests-limit: 10
     groups:
-      # Group all dev dependencies into one PR to reduce noise
-      dev-dependencies:
+      python-dependencies:
         patterns:
-          - "ruff"
-          - "basedpyright"
-          - "pytest"
-          - "pytest-cov"
-          - "coverage"
-          - "vermin"
-          - "furo"
-          - "sphinx"
-          - "sphinx-autodoc-typehints"
-          - "Pygments"
+          - "*"
+    open-pull-requests-limit: 10
 
-  # Maintain GitHub Actions versions (e.g. actions/checkout@v4)
+  # 2. GitHub Actions Workflows (.github/workflows)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5

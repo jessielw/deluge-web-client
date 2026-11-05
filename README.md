@@ -82,7 +82,9 @@ remove_torrent = client.remove_torrent("0407326f9d74629d299b525bd5f9b5dd583xxxx"
 from deluge_web_client import DelugeWebClient, TorrentOptions
 
 # using a context manager automatically logs you in
-with DelugeWebClient(url="https://site.net/deluge", password="example_password") as client:
+with DelugeWebClient(
+    url="https://site.net/deluge", password="example_password"
+) as client:
     torrent_options = TorrentOptions(
         add_paused=True,
         auto_managed=True,

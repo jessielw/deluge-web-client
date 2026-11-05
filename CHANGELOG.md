@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file starting wit
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added support for Python 3.15.
+
+### Removed
+
+- Dropped support for Python 3.9 (reached end-of-life October 2025). Python 3.10 is now the minimum required version.
+
 ## [2.1.1] - 2026-08-08
 
 ### Added
