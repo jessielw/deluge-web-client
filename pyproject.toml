@@ -3,7 +3,7 @@ name = "deluge-web-client"
 version = "2.1.1"
 description = "Deluge Web Client"
 readme = "README.md"
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.10,<3.16"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "jessielw" }]
@@ -26,12 +26,12 @@ classifiers = [
     "Environment :: Console",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Utilities",
     "Topic :: Communications :: File Sharing",
@@ -47,19 +47,18 @@ Source = "https://github.com/jessielw/deluge-web-client"
 
 [dependency-groups]
 dev = [
-    "basedpyright==1.39.8",
-    "ruff==0.15.8",
-    "pytest==8.4.2",
-    "coverage==7.10.7; python_version < '3.10'",
-    "coverage==7.15.2; python_version >= '3.10'",
+    "basedpyright==1.40.2",
+    "ruff==0.17.4",
+    "pytest==9.2.0",
+    "coverage==7.16.2",
     "pytest-cov==7.1.0",
-    "vermin==1.8.0",
+    "vermin==1.9.2",
 ]
 docs = [
-    "sphinx==7.4.7",
-    "sphinx-autodoc-typehints==2.3.0",
+    "sphinx==8.1.3",
+    "sphinx-autodoc-typehints==3.0.1",
     "furo==2025.12.19",
-    "Pygments==2.20.0",
+    "Pygments==2.21.0",
 ]
 
 [build-system]
@@ -88,13 +87,13 @@ deluge_web_client = ["py.typed"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
 
 [tool.basedpyright]
 include = ["deluge_web_client", "tests"]
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 typeCheckingMode = "strict"
 reportPrivateUsage = false
